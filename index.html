@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>SVG Editor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="toolbar">
+    <label>Tool:
+      <select id="tool">
+        <option value="rect">四角</option>
+        <option value="circle">丸</option>
+        <option value="line">ライン</option>
+        <option value="polygon">ポリゴン</option>
+        <option value="text">文字</option>
+        <option value="arrow">矢印</option>
+      </select>
+    </label>
+    <label>開始: <input type="number" id="startTime" value="0" /></label>
+    <label>終了: <input type="number" id="endTime" value="10" /></label>
+    <label>テキスト: <input type="text" id="textInput" /></label>
+    <button id="saveBtn">Save</button>
+    <input type="file" id="loadInput" />
+    <input type="range" id="timeSlider" min="0" max="10" value="0" />
+  </div>
+  <svg id="canvas" width="800" height="600"></svg>
+
+  <script src="script.js"></script>
+</body>
+</html>
