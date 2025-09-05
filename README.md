@@ -5,6 +5,7 @@ A simple in-browser SVG drawing tool with a timeline. Shapes can appear and disa
 ## Features
 - Draw rectangles, circles, lines, arrows, polygons, and text.
 - Specify the start and end times for each element.
+- Start and end time fields accept values up to five digits, keeping inputs compact.
 - Edit start/end times, text, stroke, and fill colors of selected elements.
 - Preview visibility with a timeline slider.
 - Save drawings to a JSON file and load them back later.

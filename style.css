@@ -2,3 +2,7 @@ body { font-family: sans-serif; }
 #toolbar { margin-bottom: 8px; }
 #canvas { border: 1px solid #ccc; }
 .selected { outline: 1px dashed red; }
+#startTime,
+#endTime {
+  width: 6ch;
+}
