@@ -1,4 +1,5 @@
 const svg = document.getElementById('canvas');
+const canvasContent = document.getElementById('canvasContent');
 const toolSelect = document.getElementById('tool');
 const startInput = document.getElementById('startTime');
 const endInput = document.getElementById('endTime');
@@ -22,6 +23,7 @@ function resizeCanvas() {
 
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
+updateTransform();
 
 let currentTool = toolSelect.value;
 let drawing = false;
@@ -34,11 +36,22 @@ let elemStart = null;
 let dragging = false;
 const SELECT_THRESHOLD = 10;
 
+let zoomLevel = 1;
+let panX = 0;
+let panY = 0;
+let isPanning = false;
+let startDragX = 0;
+let startDragY = 0;
+
+function updateTransform() {
+  canvasContent.setAttribute('transform', `translate(${panX} ${panY}) scale(${zoomLevel})`);
+}
+
 toolSelect.addEventListener('change', () => {
   currentTool = toolSelect.value;
   polygonPoints = [];
   if (polyline) {
-    svg.removeChild(polyline);
+    canvasContent.removeChild(polyline);
     polyline = null;
   }
   if (selectedElement) {
@@ -46,6 +59,18 @@ toolSelect.addEventListener('change', () => {
     selectedElement = null;
   }
   dragging = false;
+});
+
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  const pt = getMousePos(e);
+  const prevZoom = zoomLevel;
+  const delta = e.deltaY < 0 ? 1.1 : 0.9;
+  zoomLevel = Math.max(0.1, Math.min(10, zoomLevel * delta));
+  const factor = zoomLevel / prevZoom;
+  panX = pt.x - factor * (pt.x - panX);
+  panY = pt.y - factor * (pt.y - panY);
+  updateTransform();
 });
 
 svg.addEventListener('mousedown', e => {
@@ -58,6 +83,11 @@ svg.addEventListener('mousedown', e => {
       dragStart = pt;
       elemStart = getElementStart(selectedElement);
       dragging = true;
+    } else if (e.target === svg) {
+      deselect();
+      isPanning = true;
+      startDragX = e.clientX;
+      startDragY = e.clientY;
     } else {
       deselect();
     }
@@ -75,12 +105,21 @@ svg.addEventListener('mousedown', e => {
   drawing = true;
 });
 
-svg.addEventListener('mousemove', e => {
-  if (!dragging || !selectedElement) return;
-  const pt = getMousePos(e);
-  const dx = pt.x - dragStart.x;
-  const dy = pt.y - dragStart.y;
-  moveElement(selectedElement, elemStart, dx, dy);
+document.addEventListener('mousemove', e => {
+  if (isPanning) {
+    const dx = (e.clientX - startDragX) / zoomLevel;
+    const dy = (e.clientY - startDragY) / zoomLevel;
+    panX += dx;
+    panY += dy;
+    startDragX = e.clientX;
+    startDragY = e.clientY;
+    updateTransform();
+  } else if (dragging && selectedElement) {
+    const pt = getMousePos(e);
+    const dx = pt.x - dragStart.x;
+    const dy = pt.y - dragStart.y;
+    moveElement(selectedElement, elemStart, dx, dy);
+  }
 });
 
 svg.addEventListener('mouseup', e => {
@@ -98,6 +137,10 @@ svg.addEventListener('mouseup', e => {
   updateVisibility();
 });
 
+document.addEventListener('mouseup', () => {
+  isPanning = false;
+});
+
 svg.addEventListener('click', e => {
   if (currentTool !== 'polygon') return;
   const pt = getMousePos(e);
@@ -106,7 +149,7 @@ svg.addEventListener('click', e => {
     polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     polyline.setAttribute('fill', 'none');
     polyline.setAttribute('stroke', strokeInput.value);
-    svg.appendChild(polyline);
+    canvasContent.appendChild(polyline);
   }
   polyline.setAttribute('points', polygonPoints.map(p => `${p.x},${p.y}`).join(' '));
 });
@@ -115,7 +158,7 @@ svg.addEventListener('dblclick', e => {
   if (currentTool !== 'polygon') return;
   if (polygonPoints.length < 3) return;
   if (polyline) {
-    svg.removeChild(polyline);
+    canvasContent.removeChild(polyline);
     polyline = null;
   }
   finalizePolygon();
@@ -123,15 +166,18 @@ svg.addEventListener('dblclick', e => {
 });
 
 function getMousePos(evt) {
-  const rect = svg.getBoundingClientRect();
-  return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+  const pt = svg.createSVGPoint();
+  pt.x = evt.clientX;
+  pt.y = evt.clientY;
+  const ctm = canvasContent.getScreenCTM();
+  return pt.matrixTransform(ctm.inverse());
 }
 
 function getNearestElement(pt) {
   let nearest = null;
   let minDist = Infinity;
   let minInnerDist = Infinity;
-  Array.from(svg.children).forEach(el => {
+  Array.from(canvasContent.children).forEach(el => {
     if (el.tagName === 'defs' || typeof el.getBBox !== 'function') return;
     const box = el.getBBox();
     const dx = Math.max(box.x - pt.x, 0, pt.x - (box.x + box.width));
@@ -174,7 +220,7 @@ function addRect(p1, p2) {
   rect.setAttribute('fill', fillInput.value);
   rect.setAttribute('stroke', strokeInput.value);
   setTime(rect);
-  svg.appendChild(rect);
+  canvasContent.appendChild(rect);
   selectElement(rect);
 }
 
@@ -187,7 +233,7 @@ function addCircle(p1, p2) {
   circ.setAttribute('fill', fillInput.value);
   circ.setAttribute('stroke', strokeInput.value);
   setTime(circ);
-  svg.appendChild(circ);
+  canvasContent.appendChild(circ);
   selectElement(circ);
 }
 
@@ -205,7 +251,7 @@ function addLine(p1, p2, isArrow) {
     if (arrowPath) arrowPath.setAttribute('fill', strokeInput.value);
   }
   setTime(line);
-  svg.appendChild(line);
+  canvasContent.appendChild(line);
   selectElement(line);
 }
 
@@ -215,7 +261,7 @@ function finalizePolygon() {
   poly.setAttribute('fill', fillInput.value);
   poly.setAttribute('stroke', strokeInput.value);
   setTime(poly);
-  svg.appendChild(poly);
+  canvasContent.appendChild(poly);
   selectElement(poly);
   polygonPoints = [];
 }
@@ -229,7 +275,7 @@ function addText(p) {
   t.setAttribute('fill', fillInput.value);
   t.setAttribute('stroke', strokeInput.value);
   setTime(t);
-  svg.appendChild(t);
+  canvasContent.appendChild(t);
   selectElement(t);
 }
 
@@ -337,20 +383,15 @@ function moveElement(el, start, dx, dy) {
 }
 
 function bringToFront(el) {
-  svg.appendChild(el);
+    canvasContent.appendChild(el);
 }
 
 function sendToBack(el) {
-  const defs = svg.querySelector('defs');
-  if (defs) {
-    svg.insertBefore(el, defs.nextSibling);
-  } else {
-    svg.insertBefore(el, svg.firstChild);
-  }
+  canvasContent.insertBefore(el, canvasContent.firstChild);
 }
 
 saveBtn.addEventListener('click', () => {
-  const data = Array.from(svg.children).map(el => ({
+  const data = Array.from(canvasContent.children).map(el => ({
     type: el.tagName,
     attrs: [...el.attributes].reduce((acc, attr) => {
       acc[attr.name] = attr.value;
@@ -373,14 +414,14 @@ loadInput.addEventListener('change', () => {
   const reader = new FileReader();
   reader.onload = e => {
     const data = JSON.parse(e.target.result);
-    svg.innerHTML = '';
+    canvasContent.innerHTML = '';
     data.forEach(obj => {
       const el = document.createElementNS('http://www.w3.org/2000/svg', obj.type);
       Object.keys(obj.attrs).forEach(k => el.setAttribute(k, obj.attrs[k]));
       el.dataset.start = obj.start;
       el.dataset.end = obj.end;
       if (obj.type === 'text') el.textContent = obj.text;
-      svg.appendChild(el);
+      canvasContent.appendChild(el);
     });
     updateVisibility();
   };
@@ -389,7 +430,7 @@ loadInput.addEventListener('change', () => {
 
 deleteBtn.addEventListener('click', () => {
   if (selectedElement) {
-    svg.removeChild(selectedElement);
+    canvasContent.removeChild(selectedElement);
     selectedElement = null;
   }
 });
@@ -408,7 +449,7 @@ sendBackwardBtn.addEventListener('click', () => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Delete' && selectedElement) {
-    svg.removeChild(selectedElement);
+    canvasContent.removeChild(selectedElement);
     selectedElement = null;
   }
 });
@@ -449,7 +490,7 @@ fillInput.addEventListener('input', () => {
 
 function updateVisibility() {
   const t = Number(timeSlider.value);
-  Array.from(svg.children).forEach(el => {
+  Array.from(canvasContent.children).forEach(el => {
     const s = Number(el.dataset.start);
     const e = Number(el.dataset.end);
     el.style.display = t >= s && t <= e ? '' : 'none';
