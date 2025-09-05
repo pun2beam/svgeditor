@@ -17,6 +17,7 @@ let selectedElement = null;
 let dragStart = null;
 let elemStart = null;
 let dragging = false;
+const SELECT_THRESHOLD = 10;
 
 toolSelect.addEventListener('change', () => {
   currentTool = toolSelect.value;
@@ -34,9 +35,11 @@ toolSelect.addEventListener('change', () => {
 
 svg.addEventListener('mousedown', e => {
   const pt = getMousePos(e);
-  if (currentTool === 'select') {
-    if (e.target !== svg) {
-      selectElement(e.target);
+  const selecting = currentTool === 'select' || e.ctrlKey;
+  if (selecting) {
+    const { element, distance } = getNearestElement(pt);
+    if (element && distance <= SELECT_THRESHOLD) {
+      selectElement(element);
       dragStart = pt;
       elemStart = getElementStart(selectedElement);
       dragging = true;
@@ -107,6 +110,23 @@ svg.addEventListener('dblclick', e => {
 function getMousePos(evt) {
   const rect = svg.getBoundingClientRect();
   return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+}
+
+function getNearestElement(pt) {
+  let nearest = null;
+  let minDist = Infinity;
+  Array.from(svg.children).forEach(el => {
+    if (el.tagName === 'defs' || typeof el.getBBox !== 'function') return;
+    const box = el.getBBox();
+    const dx = Math.max(box.x - pt.x, 0, pt.x - (box.x + box.width));
+    const dy = Math.max(box.y - pt.y, 0, pt.y - (box.y + box.height));
+    const dist = Math.hypot(dx, dy);
+    if (dist < minDist) {
+      minDist = dist;
+      nearest = el;
+    }
+  });
+  return { element: nearest, distance: minDist };
 }
 
 function setTime(el) {
