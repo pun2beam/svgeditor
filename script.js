@@ -94,7 +94,7 @@ svg.addEventListener('click', e => {
   if (!polyline) {
     polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     polyline.setAttribute('fill', 'none');
-    polyline.setAttribute('stroke', 'black');
+    polyline.setAttribute('stroke', strokeInput.value);
     svg.appendChild(polyline);
   }
   polyline.setAttribute('points', polygonPoints.map(p => `${p.x},${p.y}`).join(' '));
@@ -160,10 +160,11 @@ function addRect(p1, p2) {
   rect.setAttribute('y', y);
   rect.setAttribute('width', w);
   rect.setAttribute('height', h);
-  rect.setAttribute('fill', 'none');
-  rect.setAttribute('stroke', 'black');
+  rect.setAttribute('fill', fillInput.value);
+  rect.setAttribute('stroke', strokeInput.value);
   setTime(rect);
   svg.appendChild(rect);
+  selectElement(rect);
 }
 
 function addCircle(p1, p2) {
@@ -172,10 +173,11 @@ function addCircle(p1, p2) {
   circ.setAttribute('cx', p1.x);
   circ.setAttribute('cy', p1.y);
   circ.setAttribute('r', r);
-  circ.setAttribute('fill', 'none');
-  circ.setAttribute('stroke', 'black');
+  circ.setAttribute('fill', fillInput.value);
+  circ.setAttribute('stroke', strokeInput.value);
   setTime(circ);
   svg.appendChild(circ);
+  selectElement(circ);
 }
 
 function addLine(p1, p2, isArrow) {
@@ -184,22 +186,26 @@ function addLine(p1, p2, isArrow) {
   line.setAttribute('y1', p1.y);
   line.setAttribute('x2', p2.x);
   line.setAttribute('y2', p2.y);
-  line.setAttribute('stroke', 'black');
+  line.setAttribute('stroke', strokeInput.value);
   if (isArrow) {
     line.setAttribute('marker-end', 'url(#arrow)');
     ensureArrowDef();
+    const arrowPath = document.querySelector('#arrow path');
+    if (arrowPath) arrowPath.setAttribute('fill', strokeInput.value);
   }
   setTime(line);
   svg.appendChild(line);
+  selectElement(line);
 }
 
 function finalizePolygon() {
   const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
   poly.setAttribute('points', polygonPoints.map(p => `${p.x},${p.y}`).join(' '));
-  poly.setAttribute('fill', 'none');
-  poly.setAttribute('stroke', 'black');
+  poly.setAttribute('fill', fillInput.value);
+  poly.setAttribute('stroke', strokeInput.value);
   setTime(poly);
   svg.appendChild(poly);
+  selectElement(poly);
   polygonPoints = [];
 }
 
@@ -209,9 +215,11 @@ function addText(p) {
   t.setAttribute('y', p.y);
   t.textContent = textInput.value || 'text';
   t.setAttribute('font-size', '16');
-  t.setAttribute('fill', 'black');
+  t.setAttribute('fill', fillInput.value);
+  t.setAttribute('stroke', strokeInput.value);
   setTime(t);
   svg.appendChild(t);
+  selectElement(t);
 }
 
 function ensureArrowDef() {
