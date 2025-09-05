@@ -117,15 +117,27 @@ function getMousePos(evt) {
 function getNearestElement(pt) {
   let nearest = null;
   let minDist = Infinity;
+  let minInnerDist = Infinity;
   Array.from(svg.children).forEach(el => {
     if (el.tagName === 'defs' || typeof el.getBBox !== 'function') return;
     const box = el.getBBox();
     const dx = Math.max(box.x - pt.x, 0, pt.x - (box.x + box.width));
     const dy = Math.max(box.y - pt.y, 0, pt.y - (box.y + box.height));
     const dist = Math.hypot(dx, dy);
-    if (dist < minDist) {
+    if (dist <= minDist) {
       minDist = dist;
-      nearest = el;
+
+      if (dist == 0) {
+        const dx = Math.max(box.x - pt.x, pt.x - (box.x + box.width));
+        const dy = Math.max(box.y - pt.y, pt.y - (box.y + box.height));
+        const innerDist = Math.hypot(dx, dy);
+        if (innerDist <= minInnerDist) {
+          minInnerDist = innerDist;
+          nearest = el;
+        }
+      } else {
+        nearest = el;
+      }
     }
   });
   return { element: nearest, distance: minDist };
