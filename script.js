@@ -221,6 +221,11 @@ function selectElement(el) {
   if (selectedElement) selectedElement.classList.remove('selected');
   selectedElement = el;
   selectedElement.classList.add('selected');
+  startInput.value = el.dataset.start || 0;
+  endInput.value = el.dataset.end || 0;
+  if (el.tagName === 'text') {
+    textInput.value = el.textContent;
+  }
 }
 
 function deselect() {
@@ -335,6 +340,26 @@ document.addEventListener('keydown', e => {
 });
 
 timeSlider.addEventListener('input', updateVisibility);
+
+startInput.addEventListener('input', () => {
+  if (selectedElement) {
+    selectedElement.dataset.start = startInput.value;
+    updateVisibility();
+  }
+});
+
+endInput.addEventListener('input', () => {
+  if (selectedElement) {
+    selectedElement.dataset.end = endInput.value;
+    updateVisibility();
+  }
+});
+
+textInput.addEventListener('input', () => {
+  if (selectedElement && selectedElement.tagName === 'text') {
+    selectedElement.textContent = textInput.value;
+  }
+});
 
 function updateVisibility() {
   const t = Number(timeSlider.value);
