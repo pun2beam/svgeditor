@@ -6,12 +6,17 @@ const textInput = document.getElementById('textInput');
 const saveBtn = document.getElementById('saveBtn');
 const loadInput = document.getElementById('loadInput');
 const timeSlider = document.getElementById('timeSlider');
+const deleteBtn = document.getElementById('deleteBtn');
 
 let currentTool = toolSelect.value;
 let drawing = false;
 let startPoint = null;
 let polygonPoints = [];
 let polyline = null;
+let selectedElement = null;
+let dragStart = null;
+let elemStart = null;
+let dragging = false;
 
 toolSelect.addEventListener('change', () => {
   currentTool = toolSelect.value;
@@ -20,10 +25,26 @@ toolSelect.addEventListener('change', () => {
     svg.removeChild(polyline);
     polyline = null;
   }
+  if (selectedElement) {
+    selectedElement.classList.remove('selected');
+    selectedElement = null;
+  }
+  dragging = false;
 });
 
 svg.addEventListener('mousedown', e => {
   const pt = getMousePos(e);
+  if (currentTool === 'select') {
+    if (e.target !== svg) {
+      selectElement(e.target);
+      dragStart = pt;
+      elemStart = getElementStart(selectedElement);
+      dragging = true;
+    } else {
+      deselect();
+    }
+    return;
+  }
   if (currentTool === 'text') {
     addText(pt);
     updateVisibility();
@@ -36,7 +57,19 @@ svg.addEventListener('mousedown', e => {
   drawing = true;
 });
 
+svg.addEventListener('mousemove', e => {
+  if (currentTool !== 'select' || !dragging || !selectedElement) return;
+  const pt = getMousePos(e);
+  const dx = pt.x - dragStart.x;
+  const dy = pt.y - dragStart.y;
+  moveElement(selectedElement, elemStart, dx, dy);
+});
+
 svg.addEventListener('mouseup', e => {
+  if (currentTool === 'select') {
+    dragging = false;
+    return;
+  }
   if (!drawing) return;
   drawing = false;
   const pt = getMousePos(e);
@@ -164,6 +197,71 @@ function ensureArrowDef() {
   svg.insertBefore(defs, svg.firstChild);
 }
 
+function selectElement(el) {
+  if (selectedElement) selectedElement.classList.remove('selected');
+  selectedElement = el;
+  selectedElement.classList.add('selected');
+}
+
+function deselect() {
+  if (selectedElement) selectedElement.classList.remove('selected');
+  selectedElement = null;
+}
+
+function getElementStart(el) {
+  switch (el.tagName) {
+    case 'rect':
+      return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')) };
+    case 'circle':
+      return { cx: parseFloat(el.getAttribute('cx')), cy: parseFloat(el.getAttribute('cy')) };
+    case 'line':
+      return {
+        x1: parseFloat(el.getAttribute('x1')),
+        y1: parseFloat(el.getAttribute('y1')),
+        x2: parseFloat(el.getAttribute('x2')),
+        y2: parseFloat(el.getAttribute('y2'))
+      };
+    case 'polygon':
+      return {
+        points: el.getAttribute('points').split(' ').map(p => {
+          const [x, y] = p.split(',');
+          return { x: parseFloat(x), y: parseFloat(y) };
+        })
+      };
+    case 'text':
+      return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')) };
+    default:
+      return {};
+  }
+}
+
+function moveElement(el, start, dx, dy) {
+  switch (el.tagName) {
+    case 'rect':
+      el.setAttribute('x', start.x + dx);
+      el.setAttribute('y', start.y + dy);
+      break;
+    case 'circle':
+      el.setAttribute('cx', start.cx + dx);
+      el.setAttribute('cy', start.cy + dy);
+      break;
+    case 'line':
+      el.setAttribute('x1', start.x1 + dx);
+      el.setAttribute('y1', start.y1 + dy);
+      el.setAttribute('x2', start.x2 + dx);
+      el.setAttribute('y2', start.y2 + dy);
+      break;
+    case 'polygon':
+      const pts = start.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+      el.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+      break;
+    case 'text':
+      el.setAttribute('x', start.x + dx);
+      el.setAttribute('y', start.y + dy);
+      break;
+  }
+}
+
 saveBtn.addEventListener('click', () => {
   const data = Array.from(svg.children).map(el => ({
     type: el.tagName,
@@ -200,6 +298,20 @@ loadInput.addEventListener('change', () => {
     updateVisibility();
   };
   reader.readAsText(file);
+});
+
+deleteBtn.addEventListener('click', () => {
+  if (selectedElement) {
+    svg.removeChild(selectedElement);
+    selectedElement = null;
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Delete' && selectedElement) {
+    svg.removeChild(selectedElement);
+    selectedElement = null;
+  }
 });
 
 timeSlider.addEventListener('input', updateVisibility);
