@@ -7,6 +7,8 @@ const saveBtn = document.getElementById('saveBtn');
 const loadInput = document.getElementById('loadInput');
 const timeSlider = document.getElementById('timeSlider');
 const deleteBtn = document.getElementById('deleteBtn');
+const strokeInput = document.getElementById('strokeColor');
+const fillInput = document.getElementById('fillColor');
 
 let currentTool = toolSelect.value;
 let drawing = false;
@@ -220,12 +222,13 @@ function ensureArrowDef() {
 function selectElement(el) {
   if (selectedElement) selectedElement.classList.remove('selected');
   selectedElement = el;
-  selectedElement.classList.add('selected');
   startInput.value = el.dataset.start || 0;
   endInput.value = el.dataset.end || 0;
   if (el.tagName === 'text') {
     textInput.value = el.textContent;
   }
+  updateColorInputs(el);
+  selectedElement.classList.add('selected');
 }
 
 function deselect() {
@@ -258,6 +261,19 @@ function getElementStart(el) {
     default:
       return {};
   }
+}
+
+function updateColorInputs(el) {
+  const stroke = getComputedStyle(el).stroke;
+  strokeInput.value = stroke === 'none' ? '#000000' : rgbToHex(stroke);
+  const fill = getComputedStyle(el).fill;
+  fillInput.value = fill === 'none' ? '#ffffff' : rgbToHex(fill);
+}
+
+function rgbToHex(rgb) {
+  const m = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+  if (!m) return '#000000';
+  return '#' + m.slice(1).map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
 }
 
 function moveElement(el, start, dx, dy) {
@@ -358,6 +374,18 @@ endInput.addEventListener('input', () => {
 textInput.addEventListener('input', () => {
   if (selectedElement && selectedElement.tagName === 'text') {
     selectedElement.textContent = textInput.value;
+  }
+});
+
+strokeInput.addEventListener('input', () => {
+  if (selectedElement) {
+    selectedElement.setAttribute('stroke', strokeInput.value);
+  }
+});
+
+fillInput.addEventListener('input', () => {
+  if (selectedElement) {
+    selectedElement.setAttribute('fill', fillInput.value);
   }
 });
 
