@@ -7,6 +7,8 @@ const saveBtn = document.getElementById('saveBtn');
 const loadInput = document.getElementById('loadInput');
 const timeSlider = document.getElementById('timeSlider');
 const deleteBtn = document.getElementById('deleteBtn');
+const bringForwardBtn = document.getElementById('bringForwardBtn');
+const sendBackwardBtn = document.getElementById('sendBackwardBtn');
 const strokeInput = document.getElementById('strokeColor');
 const fillInput = document.getElementById('fillColor');
 
@@ -315,6 +317,19 @@ function moveElement(el, start, dx, dy) {
   }
 }
 
+function bringToFront(el) {
+  svg.appendChild(el);
+}
+
+function sendToBack(el) {
+  const defs = svg.querySelector('defs');
+  if (defs) {
+    svg.insertBefore(el, defs.nextSibling);
+  } else {
+    svg.insertBefore(el, svg.firstChild);
+  }
+}
+
 saveBtn.addEventListener('click', () => {
   const data = Array.from(svg.children).map(el => ({
     type: el.tagName,
@@ -357,6 +372,18 @@ deleteBtn.addEventListener('click', () => {
   if (selectedElement) {
     svg.removeChild(selectedElement);
     selectedElement = null;
+  }
+});
+
+bringForwardBtn.addEventListener('click', () => {
+  if (selectedElement) {
+    bringToFront(selectedElement);
+  }
+});
+
+sendBackwardBtn.addEventListener('click', () => {
+  if (selectedElement) {
+    sendToBack(selectedElement);
   }
 });
 
