@@ -6,3 +6,18 @@ body { font-family: sans-serif; }
 #endTime {
   width: 6ch;
 }
+.custom-button {
+  display: inline-block;
+  padding: 4px 4px;
+  background: #c9cacb;
+  color: #000000;
+  border: 1px solid #000000;   /* ← 縁取り（ボーダー） */
+  cursor: pointer;
+  border-radius: 1px;
+  font-size: 14px;       /* 文字サイズを固定 */
+  font-family: inherit;  /* 親と同じフォントを使用 */
+  line-height: 1;        /* 行の高さを揃える */
+}
+.custom-button:hover {
+  background: #aeafb0;
+}
