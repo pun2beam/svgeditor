@@ -11,6 +11,17 @@ const bringForwardBtn = document.getElementById('bringForwardBtn');
 const sendBackwardBtn = document.getElementById('sendBackwardBtn');
 const strokeInput = document.getElementById('strokeColor');
 const fillInput = document.getElementById('fillColor');
+const toolbar = document.getElementById('toolbar');
+
+function resizeCanvas() {
+  const width = window.innerWidth;
+  const height = window.innerHeight - toolbar.offsetHeight;
+  svg.setAttribute('width', width);
+  svg.setAttribute('height', height);
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 
 let currentTool = toolSelect.value;
 let drawing = false;
