@@ -46,7 +46,7 @@ svg.addEventListener('mousedown', e => {
     } else {
       deselect();
     }
-    return;
+    return; // skip drawing when selecting
   }
   if (currentTool === 'text') {
     addText(pt);
@@ -61,7 +61,7 @@ svg.addEventListener('mousedown', e => {
 });
 
 svg.addEventListener('mousemove', e => {
-  if (currentTool !== 'select' || !dragging || !selectedElement) return;
+  if (!dragging || !selectedElement) return;
   const pt = getMousePos(e);
   const dx = pt.x - dragStart.x;
   const dy = pt.y - dragStart.y;
@@ -69,7 +69,7 @@ svg.addEventListener('mousemove', e => {
 });
 
 svg.addEventListener('mouseup', e => {
-  if (currentTool === 'select') {
+  if (dragging) {
     dragging = false;
     return;
   }
