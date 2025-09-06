@@ -6,7 +6,8 @@ const endInput = document.getElementById('endTime');
 const textInput = document.getElementById('textInput');
 const saveBtn = document.getElementById('saveBtn');
 const loadInput = document.getElementById('loadInput');
-const timeSlider = document.getElementById('timeSlider');
+const displayStartInput = document.getElementById('displayStart');
+const displayEndInput = document.getElementById('displayEnd');
 const deleteBtn = document.getElementById('deleteBtn');
 const bringForwardBtn = document.getElementById('bringForwardBtn');
 const sendBackwardBtn = document.getElementById('sendBackwardBtn');
@@ -1014,7 +1015,8 @@ document.addEventListener('keydown', e => {
   }
 });
 
-timeSlider.addEventListener('input', updateVisibility);
+displayStartInput.addEventListener('input', updateVisibility);
+displayEndInput.addEventListener('input', updateVisibility);
 
 startInput.addEventListener('input', () => {
   if (selectedElement) {
@@ -1075,12 +1077,13 @@ lineTypeSelect.addEventListener('change', () => {
 });
 
 function updateVisibility() {
-  const t = Number(timeSlider.value);
+  const start = Number(displayStartInput.value);
+  const end = Number(displayEndInput.value);
   Array.from(canvasContent.children).forEach(el => {
     if (el.classList.contains('resize-handle') || el.classList.contains('vertex-handle')) return;
     const s = Number(el.dataset.start);
     const e = Number(el.dataset.end);
-    el.style.display = t >= s && t <= e ? '' : 'none';
+    el.style.display = e >= start && s <= end ? '' : 'none';
   });
   if (resizeHandle) resizeHandle.style.display = '';
   vertexHandles.forEach(h => (h.style.display = ''));
