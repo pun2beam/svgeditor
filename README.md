@@ -3,7 +3,7 @@
 A simple in-browser SVG drawing tool with a timeline. Shapes can appear and disappear based on start and end times, allowing you to create time-based annotations.
 
 ## Features
-- Draw rectangles, circles, lines, arrows, polygons, and text.
+- Draw rectangles, circles, lines, arrows, polygons, curved paths, and text.
 - Specify the start and end times for each element.
 - Start and end time fields accept values up to five digits, keeping inputs compact.
 - Edit start/end times, text, stroke, and fill colors of selected elements.

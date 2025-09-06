@@ -381,14 +381,26 @@ function finalizePolyline() {
   polygonPoints = [];
 }
 
+function getSmoothPath(points) {
+  if (points.length < 2) return '';
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] || points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] || p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
 function finalizePath() {
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  const d =
-    `M ${polygonPoints[0].x} ${polygonPoints[0].y}` +
-    polygonPoints
-      .slice(1)
-      .map(p => ` L ${p.x} ${p.y}`)
-      .join('');
+  const d = getSmoothPath(polygonPoints);
   path.setAttribute('d', d);
   path.setAttribute('fill', 'none');
   path.setAttribute('stroke', strokeInput.value);
@@ -504,11 +516,21 @@ function removeResizeHandle() {
 function getPoints(el) {
   if (el.tagName === 'path') {
     const d = el.getAttribute('d') || '';
-    const nums = d.match(/-?[\d.]+/g) || [];
+    const cmds = d.match(/[MLC][^MLC]*/g) || [];
     const pts = [];
-    for (let i = 0; i < nums.length; i += 2) {
-      pts.push({ x: parseFloat(nums[i]), y: parseFloat(nums[i + 1]) });
-    }
+    cmds.forEach(cmd => {
+      const type = cmd[0];
+      const nums = cmd
+        .slice(1)
+        .trim()
+        .split(/[ ,]+/)
+        .map(Number);
+      if (type === 'M' || type === 'L') {
+        pts.push({ x: nums[0], y: nums[1] });
+      } else if (type === 'C') {
+        pts.push({ x: nums[4], y: nums[5] });
+      }
+    });
     return pts;
   }
   return (el.getAttribute('points') || '')
@@ -522,14 +544,7 @@ function getPoints(el) {
 
 function setPoints(el, pts) {
   if (el.tagName === 'path') {
-    const d =
-      pts.length
-        ? `M ${pts[0].x} ${pts[0].y}` +
-          pts
-            .slice(1)
-            .map(p => ` L ${p.x} ${p.y}`)
-            .join('')
-        : '';
+    const d = pts.length ? getSmoothPath(pts) : '';
     el.setAttribute('d', d);
   } else {
     el.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
