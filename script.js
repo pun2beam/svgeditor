@@ -35,6 +35,10 @@ let elemStart = null;
 let dragging = false;
 const SELECT_THRESHOLD = 10;
 
+let resizeHandle = null;
+let resizing = false;
+let resizeStart = null;
+
 let zoomLevel = 1;
 let panX = 0;
 let panY = 0;
@@ -58,6 +62,7 @@ toolSelect.addEventListener('change', () => {
     selectedElement.classList.remove('selected');
     selectedElement = null;
   }
+  removeResizeHandle();
   dragging = false;
 });
 
@@ -121,11 +126,21 @@ document.addEventListener('mousemove', e => {
     startDragX = e.clientX;
     startDragY = e.clientY;
     updateTransform();
+  } else if (resizing && selectedElement) {
+    const pt = getMousePos(e);
+    const dx = pt.x - dragStart.x;
+    const dy = pt.y - dragStart.y;
+    const newW = Math.max(0, resizeStart.width + dx);
+    const newH = Math.max(0, resizeStart.height + dy);
+    selectedElement.setAttribute('width', newW);
+    selectedElement.setAttribute('height', newH);
+    positionResizeHandle(selectedElement);
   } else if (dragging && selectedElement) {
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
     const dy = pt.y - dragStart.y;
     moveElement(selectedElement, elemStart, dx, dy);
+    if (selectedElement.tagName === 'rect') positionResizeHandle(selectedElement);
   }
 });
 
@@ -146,6 +161,7 @@ svg.addEventListener('mouseup', e => {
 
 document.addEventListener('mouseup', () => {
   isPanning = false;
+  resizing = false;
 });
 
 svg.addEventListener('click', e => {
@@ -185,7 +201,7 @@ function getNearestElement(pt) {
   let minDist = Infinity;
   let minInnerDist = Infinity;
   Array.from(canvasContent.children).forEach(el => {
-    if (el.tagName === 'defs' || typeof el.getBBox !== 'function') return;
+    if (el.tagName === 'defs' || typeof el.getBBox !== 'function' || el.classList.contains('resize-handle')) return;
     const box = el.getBBox();
     const dx = Math.max(box.x - pt.x, 0, pt.x - (box.x + box.width));
     const dy = Math.max(box.y - pt.y, 0, pt.y - (box.y + box.height));
@@ -307,6 +323,7 @@ function ensureArrowDef() {
 
 function selectElement(el) {
   if (selectedElement) selectedElement.classList.remove('selected');
+  removeResizeHandle();
   selectedElement = el;
   startInput.value = el.dataset.start || 0;
   endInput.value = el.dataset.end || 0;
@@ -315,11 +332,52 @@ function selectElement(el) {
   }
   updateColorInputs(el);
   selectedElement.classList.add('selected');
+  addResizeHandle(el);
 }
 
 function deselect() {
   if (selectedElement) selectedElement.classList.remove('selected');
   selectedElement = null;
+  removeResizeHandle();
+}
+
+function positionResizeHandle(rect) {
+  if (!resizeHandle || rect.tagName !== 'rect') return;
+  const x = parseFloat(rect.getAttribute('x')) + parseFloat(rect.getAttribute('width'));
+  const y = parseFloat(rect.getAttribute('y')) + parseFloat(rect.getAttribute('height'));
+  const size = parseFloat(resizeHandle.getAttribute('width'));
+  resizeHandle.setAttribute('x', x - size / 2);
+  resizeHandle.setAttribute('y', y - size / 2);
+}
+
+function addResizeHandle(rect) {
+  removeResizeHandle();
+  if (rect.tagName !== 'rect') return;
+  const handle = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  handle.setAttribute('width', 8);
+  handle.setAttribute('height', 8);
+  handle.classList.add('resize-handle');
+  canvasContent.appendChild(handle);
+  positionResizeHandle(rect);
+  handle.addEventListener('mousedown', e => {
+    e.stopPropagation();
+    resizing = true;
+    dragStart = getMousePos(e);
+    resizeStart = {
+      x: parseFloat(rect.getAttribute('x')),
+      y: parseFloat(rect.getAttribute('y')),
+      width: parseFloat(rect.getAttribute('width')),
+      height: parseFloat(rect.getAttribute('height'))
+    };
+  });
+  resizeHandle = handle;
+}
+
+function removeResizeHandle() {
+  if (resizeHandle) {
+    resizeHandle.remove();
+    resizeHandle = null;
+  }
 }
 
 function getElementStart(el) {
@@ -404,6 +462,7 @@ function scaleElement(el, factor) {
       el.setAttribute('y', cy - nh / 2);
       el.setAttribute('width', nw);
       el.setAttribute('height', nh);
+      if (el === selectedElement) positionResizeHandle(el);
       break;
     }
     case 'circle': {
@@ -455,14 +514,18 @@ function scaleElement(el, factor) {
 
 function bringToFront(el) {
     canvasContent.appendChild(el);
+    if (resizeHandle) canvasContent.appendChild(resizeHandle);
 }
 
 function sendToBack(el) {
   canvasContent.insertBefore(el, canvasContent.firstChild);
+  if (resizeHandle) canvasContent.appendChild(resizeHandle);
 }
 
 saveBtn.addEventListener('click', () => {
-  const data = Array.from(canvasContent.children).map(el => ({
+  const data = Array.from(canvasContent.children)
+    .filter(el => !el.classList.contains('resize-handle'))
+    .map(el => ({
     type: el.tagName,
     attrs: [...el.attributes].reduce((acc, attr) => {
       acc[attr.name] = attr.value;
@@ -503,6 +566,7 @@ deleteBtn.addEventListener('click', () => {
   if (selectedElement) {
     canvasContent.removeChild(selectedElement);
     selectedElement = null;
+    removeResizeHandle();
   }
 });
 
@@ -522,6 +586,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Delete' && selectedElement) {
     canvasContent.removeChild(selectedElement);
     selectedElement = null;
+    removeResizeHandle();
   }
 });
 
@@ -562,8 +627,10 @@ fillInput.addEventListener('input', () => {
 function updateVisibility() {
   const t = Number(timeSlider.value);
   Array.from(canvasContent.children).forEach(el => {
+    if (el.classList.contains('resize-handle')) return;
     const s = Number(el.dataset.start);
     const e = Number(el.dataset.end);
     el.style.display = t >= s && t <= e ? '' : 'none';
   });
+  if (resizeHandle) resizeHandle.style.display = '';
 }
