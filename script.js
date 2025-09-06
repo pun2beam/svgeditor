@@ -491,6 +491,7 @@ function addResizeHandle(rect) {
   handle.setAttribute('height', 8);
   handle.classList.add('resize-handle');
   canvasContent.appendChild(handle);
+  resizeHandle = handle;
   positionResizeHandle(rect);
   handle.addEventListener('mousedown', e => {
     e.stopPropagation();
@@ -503,7 +504,6 @@ function addResizeHandle(rect) {
       height: parseFloat(rect.getAttribute('height'))
     };
   });
-  resizeHandle = handle;
 }
 
 function removeResizeHandle() {
