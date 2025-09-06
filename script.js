@@ -71,6 +71,10 @@ toolSelect.addEventListener('change', () => {
   removeResizeHandle();
   removeVertexHandles();
   dragging = false;
+  // Bubble tool also relies on the text field; clear it only when switching away
+  if (currentTool !== 'text' && currentTool !== 'bubble') {
+    textInput.value = '';
+  }
 });
 
 svg.addEventListener('wheel', e => {
