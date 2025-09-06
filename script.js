@@ -96,7 +96,9 @@ svg.addEventListener('mousedown', e => {
   const pt = getMousePos(e);
   if (
     selectedElement &&
-    (selectedElement.tagName === 'polygon' || selectedElement.tagName === 'polyline') &&
+    (selectedElement.tagName === 'polygon' ||
+      selectedElement.tagName === 'polyline' ||
+      selectedElement.tagName === 'path') &&
     e.shiftKey &&
     e.target === selectedElement
   ) {
@@ -125,7 +127,11 @@ svg.addEventListener('mousedown', e => {
     updateVisibility();
     return;
   }
-  if (currentTool === 'polygon' || currentTool === 'polyline') {
+  if (
+    currentTool === 'polygon' ||
+    currentTool === 'polyline' ||
+    currentTool === 'path'
+  ) {
     return; // handled in click events
   }
   startPoint = pt;
@@ -153,7 +159,9 @@ document.addEventListener('mousemove', e => {
   } else if (
     draggingVertexIndex !== null &&
     selectedElement &&
-    (selectedElement.tagName === 'polygon' || selectedElement.tagName === 'polyline')
+    (selectedElement.tagName === 'polygon' ||
+      selectedElement.tagName === 'polyline' ||
+      selectedElement.tagName === 'path')
   ) {
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
@@ -161,10 +169,7 @@ document.addEventListener('mousemove', e => {
     const newPts = polygonStart.points.map((p, i) =>
       i === draggingVertexIndex ? { x: p.x + dx, y: p.y + dy } : p
     );
-    selectedElement.setAttribute(
-      'points',
-      newPts.map(p => `${p.x},${p.y}`).join(' ')
-    );
+    setPoints(selectedElement, newPts);
     updatePolyHandles(newPts);
   } else if (dragging && selectedElement) {
     const pt = getMousePos(e);
@@ -197,7 +202,12 @@ document.addEventListener('mouseup', () => {
 });
 
 svg.addEventListener('click', e => {
-  if (currentTool !== 'polygon' && currentTool !== 'polyline') return;
+  if (
+    currentTool !== 'polygon' &&
+    currentTool !== 'polyline' &&
+    currentTool !== 'path'
+  )
+    return;
   const pt = getMousePos(e);
   polygonPoints.push(pt);
   if (!polyline) {
@@ -213,7 +223,9 @@ svg.addEventListener('click', e => {
 svg.addEventListener('click', e => {
   if (
     selectedElement &&
-    (selectedElement.tagName === 'polygon' || selectedElement.tagName === 'polyline') &&
+    (selectedElement.tagName === 'polygon' ||
+      selectedElement.tagName === 'polyline' ||
+      selectedElement.tagName === 'path') &&
     e.shiftKey &&
     e.target === selectedElement
   ) {
@@ -223,7 +235,12 @@ svg.addEventListener('click', e => {
 });
 
 svg.addEventListener('dblclick', e => {
-  if (currentTool !== 'polygon' && currentTool !== 'polyline') return;
+  if (
+    currentTool !== 'polygon' &&
+    currentTool !== 'polyline' &&
+    currentTool !== 'path'
+  )
+    return;
   const minPts = currentTool === 'polygon' ? 3 : 2;
   if (polygonPoints.length < minPts) return;
   if (polyline) {
@@ -231,7 +248,8 @@ svg.addEventListener('dblclick', e => {
     polyline = null;
   }
   if (currentTool === 'polygon') finalizePolygon();
-  else finalizePolyline();
+  else if (currentTool === 'polyline') finalizePolyline();
+  else finalizePath();
   updateVisibility();
 });
 
@@ -363,6 +381,25 @@ function finalizePolyline() {
   polygonPoints = [];
 }
 
+function finalizePath() {
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  const d =
+    `M ${polygonPoints[0].x} ${polygonPoints[0].y}` +
+    polygonPoints
+      .slice(1)
+      .map(p => ` L ${p.x} ${p.y}`)
+      .join('');
+  path.setAttribute('d', d);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', strokeInput.value);
+  path.setAttribute('stroke-width', strokeWidthInput.value);
+  if (lineTypeSelect.value) path.setAttribute('stroke-dasharray', lineTypeSelect.value);
+  setTime(path);
+  canvasContent.appendChild(path);
+  selectElement(path);
+  polygonPoints = [];
+}
+
 function addText(p) {
   const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
   t.setAttribute('x', p.x);
@@ -410,7 +447,12 @@ function selectElement(el) {
   updateColorInputs(el);
   selectedElement.classList.add('selected');
   addResizeHandle(el);
-  if (el.tagName === 'polygon' || el.tagName === 'polyline') addPolyHandles(el);
+  if (
+    el.tagName === 'polygon' ||
+    el.tagName === 'polyline' ||
+    el.tagName === 'path'
+  )
+    addPolyHandles(el);
 }
 
 function deselect() {
@@ -459,9 +501,17 @@ function removeResizeHandle() {
   }
 }
 
-function parsePoints(el) {
-  return el
-    .getAttribute('points')
+function getPoints(el) {
+  if (el.tagName === 'path') {
+    const d = el.getAttribute('d') || '';
+    const nums = d.match(/-?[\d.]+/g) || [];
+    const pts = [];
+    for (let i = 0; i < nums.length; i += 2) {
+      pts.push({ x: parseFloat(nums[i]), y: parseFloat(nums[i + 1]) });
+    }
+    return pts;
+  }
+  return (el.getAttribute('points') || '')
     .split(' ')
     .filter(s => s)
     .map(p => {
@@ -470,13 +520,25 @@ function parsePoints(el) {
     });
 }
 
-function serializePoints(pts) {
-  return pts.map(p => `${p.x},${p.y}`).join(' ');
+function setPoints(el, pts) {
+  if (el.tagName === 'path') {
+    const d =
+      pts.length
+        ? `M ${pts[0].x} ${pts[0].y}` +
+          pts
+            .slice(1)
+            .map(p => ` L ${p.x} ${p.y}`)
+            .join('')
+        : '';
+    el.setAttribute('d', d);
+  } else {
+    el.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+  }
 }
 
 function addPolyHandles(poly) {
   removeVertexHandles();
-  const pts = parsePoints(poly);
+  const pts = getPoints(poly);
   pts.forEach((pt, i) => {
     const handle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     handle.setAttribute('r', 5);
@@ -515,19 +577,21 @@ function removeVertexHandles() {
 function removePoint(index) {
   if (
     !selectedElement ||
-    (selectedElement.tagName !== 'polygon' && selectedElement.tagName !== 'polyline')
+    (selectedElement.tagName !== 'polygon' &&
+      selectedElement.tagName !== 'polyline' &&
+      selectedElement.tagName !== 'path')
   )
     return;
-  const pts = parsePoints(selectedElement);
+  const pts = getPoints(selectedElement);
   const minPts = selectedElement.tagName === 'polygon' ? 3 : 2;
   if (pts.length <= minPts) return;
   pts.splice(index, 1);
-  selectedElement.setAttribute('points', serializePoints(pts));
+  setPoints(selectedElement, pts);
   addPolyHandles(selectedElement);
 }
 
 function addPointToShape(poly, pt) {
-  const pts = parsePoints(poly);
+  const pts = getPoints(poly);
   let index = 0;
   let minDist = Infinity;
   const limit = poly.tagName === 'polygon' ? pts.length : pts.length - 1;
@@ -541,7 +605,7 @@ function addPointToShape(poly, pt) {
     }
   }
   pts.splice(index, 0, pt);
-  poly.setAttribute('points', serializePoints(pts));
+  setPoints(poly, pts);
   addPolyHandles(poly);
 }
 
@@ -572,8 +636,9 @@ function getElementStart(el) {
       };
     case 'polygon':
     case 'polyline':
+    case 'path':
       return {
-        points: parsePoints(el)
+        points: getPoints(el)
       };
     case 'text':
       return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')) };
@@ -616,10 +681,12 @@ function moveElement(el, start, dx, dy) {
       break;
     case 'polygon':
     case 'polyline':
+    case 'path': {
       const pts = start.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-      el.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+      setPoints(el, pts);
       if (el === selectedElement) updatePolyHandles(pts);
       break;
+    }
     case 'text':
       el.setAttribute('x', start.x + dx);
       el.setAttribute('y', start.y + dy);
@@ -664,8 +731,9 @@ function scaleElement(el, factor) {
       break;
     }
     case 'polygon':
-    case 'polyline': {
-      const pts = parsePoints(el);
+    case 'polyline':
+    case 'path': {
+      const pts = getPoints(el);
       let minX = Infinity,
         maxX = -Infinity,
         minY = Infinity,
@@ -682,7 +750,7 @@ function scaleElement(el, factor) {
         x: cx + (p.x - cx) * factor,
         y: cy + (p.y - cy) * factor
       }));
-      el.setAttribute('points', serializePoints(npts));
+      setPoints(el, npts);
       if (el === selectedElement) updatePolyHandles(npts);
       break;
     }
