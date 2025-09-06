@@ -40,7 +40,8 @@
     <button id="saveBtn" class="custom-button">Save</button>
     <label for="loadInput" class="custom-button">Load</label>
     <input type="file" id="loadInput" style="display:none;">
-    <input type="range" id="timeSlider" min="0" max="10" value="0" />
+    <label>表示開始: <input type="number" id="displayStart" value="0" max="99999" /></label>
+    <label>表示終了: <input type="number" id="displayEnd" value="10" max="99999" /></label>
   </div>
   <svg id="canvas">
     <g id="canvasContent"></g>
