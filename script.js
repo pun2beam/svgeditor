@@ -496,7 +496,14 @@ function ensureArrowDef() {
 }
 
 function selectElement(el) {
-  if (selectedElement) selectedElement.classList.remove('selected');
+  if (selectedElement) {
+    selectedElement.classList.remove('selected');
+    if (selectedElement.tagName === 'g') {
+      selectedElement.querySelectorAll('*').forEach(c =>
+        c.classList.remove('selected')
+      );
+    }
+  }
   removeResizeHandle();
   removeVertexHandles();
   selectedElement = el;
@@ -507,6 +514,9 @@ function selectElement(el) {
   }
   updateColorInputs(el);
   selectedElement.classList.add('selected');
+  if (el.tagName === 'g') {
+    el.querySelectorAll('*').forEach(c => c.classList.add('selected'));
+  }
   addResizeHandle(el);
   if (
     el.tagName === 'polygon' ||
@@ -517,7 +527,14 @@ function selectElement(el) {
 }
 
 function deselect() {
-  if (selectedElement) selectedElement.classList.remove('selected');
+  if (selectedElement) {
+    selectedElement.classList.remove('selected');
+    if (selectedElement.tagName === 'g') {
+      selectedElement.querySelectorAll('*').forEach(c =>
+        c.classList.remove('selected')
+      );
+    }
+  }
   selectedElement = null;
   removeResizeHandle();
   removeVertexHandles();
@@ -706,6 +723,11 @@ function getElementStart(el) {
       };
     case 'text':
       return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')) };
+    case 'g':
+      return Array.from(el.children).map(child => ({
+        el: child,
+        start: getElementStart(child)
+      }));
     default:
       return {};
   }
@@ -754,6 +776,9 @@ function moveElement(el, start, dx, dy) {
     case 'text':
       el.setAttribute('x', start.x + dx);
       el.setAttribute('y', start.y + dy);
+      break;
+    case 'g':
+      start.forEach(obj => moveElement(obj.el, obj.start, dx, dy));
       break;
   }
 }
@@ -821,6 +846,34 @@ function scaleElement(el, factor) {
     case 'text': {
       const size = (parseFloat(el.getAttribute('font-size')) || 16) * factor;
       el.setAttribute('font-size', size);
+      break;
+    }
+    case 'g': {
+      const children = Array.from(el.children);
+      if (children.length === 0) break;
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
+      children.forEach(ch => {
+        const bb = ch.getBBox();
+        minX = Math.min(minX, bb.x);
+        minY = Math.min(minY, bb.y);
+        maxX = Math.max(maxX, bb.x + bb.width);
+        maxY = Math.max(maxY, bb.y + bb.height);
+      });
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      children.forEach(ch => {
+        const bb = ch.getBBox();
+        const childCx = bb.x + bb.width / 2;
+        const childCy = bb.y + bb.height / 2;
+        const dx = (childCx - cx) * (factor - 1);
+        const dy = (childCy - cy) * (factor - 1);
+        const start = getElementStart(ch);
+        moveElement(ch, start, dx, dy);
+        scaleElement(ch, factor);
+      });
       break;
     }
   }
