@@ -196,6 +196,7 @@ svg.addEventListener('mouseup', e => {
   else if (currentTool === 'circle') addCircle(startPoint, pt);
   else if (currentTool === 'line') addLine(startPoint, pt);
   else if (currentTool === 'arrow') addLine(startPoint, pt, true);
+  else if (currentTool === 'bubble') addBubble(startPoint, pt);
   updateVisibility();
 });
 
@@ -357,6 +358,50 @@ function addLine(p1, p2, isArrow) {
   setTime(line);
   canvasContent.appendChild(line);
   selectElement(line);
+}
+
+function addBubble(p1, p2) {
+  const x = Math.min(p1.x, p2.x);
+  const y = Math.min(p1.y, p2.y);
+  const w = Math.abs(p1.x - p2.x);
+  const h = Math.abs(p1.y - p2.y);
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('stroke', strokeInput.value);
+  g.setAttribute('fill', fillInput.value);
+  g.setAttribute('stroke-width', strokeWidthInput.value);
+  if (lineTypeSelect.value) g.setAttribute('stroke-dasharray', lineTypeSelect.value);
+
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x);
+  rect.setAttribute('y', y);
+  rect.setAttribute('width', w);
+  rect.setAttribute('height', h);
+
+  const tail = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  const tailW = Math.min(20, w);
+  const tailH = Math.min(20, h);
+  const midX = x + w / 2;
+  tail.setAttribute(
+    'points',
+    `${midX - tailW / 2},${y + h} ${midX + tailW / 2},${y + h} ${midX},${y + h + tailH}`
+  );
+
+  const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  text.textContent = textInput.value || 'text';
+  text.setAttribute('x', x + w / 2);
+  text.setAttribute('y', y + h / 2);
+  text.setAttribute('dominant-baseline', 'middle');
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('font-size', '16');
+  text.setAttribute('fill', strokeInput.value);
+  text.setAttribute('stroke', 'none');
+
+  g.appendChild(rect);
+  g.appendChild(tail);
+  g.appendChild(text);
+  setTime(g);
+  canvasContent.appendChild(g);
+  selectElement(g);
 }
 
 function finalizePolygon() {
