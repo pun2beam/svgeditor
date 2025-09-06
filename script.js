@@ -401,7 +401,44 @@ function addBubble(p1, p2) {
   g.appendChild(text);
   setTime(g);
   canvasContent.appendChild(g);
+  resizeBubbleToFitText(g);
   selectElement(g);
+}
+
+function resizeBubbleToFitText(g) {
+  const rect = g.querySelector('rect');
+  const text = g.querySelector('text');
+  const tail = g.querySelector('polygon');
+  if (!rect || !text) return;
+  const padding = 10;
+  let w = parseFloat(rect.getAttribute('width'));
+  let h = parseFloat(rect.getAttribute('height'));
+  const cx = parseFloat(rect.getAttribute('x')) + w / 2;
+  const cy = parseFloat(rect.getAttribute('y')) + h / 2;
+  const bbox = text.getBBox();
+  const neededW = bbox.width + padding * 2;
+  const neededH = bbox.height + padding * 2;
+  w = Math.max(w, neededW);
+  h = Math.max(h, neededH);
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+  rect.setAttribute('x', x);
+  rect.setAttribute('y', y);
+  rect.setAttribute('width', w);
+  rect.setAttribute('height', h);
+  text.setAttribute('x', cx);
+  text.setAttribute('y', cy);
+  text.setAttribute('dominant-baseline', 'middle');
+  text.setAttribute('text-anchor', 'middle');
+  if (tail) {
+    const tailW = Math.min(20, w);
+    const tailH = Math.min(20, h);
+    const midX = cx;
+    tail.setAttribute(
+      'points',
+      `${midX - tailW / 2},${y + h} ${midX + tailW / 2},${y + h} ${midX},${y + h + tailH}`
+    );
+  }
 }
 
 function finalizePolygon() {
@@ -511,6 +548,9 @@ function selectElement(el) {
   endInput.value = el.dataset.end || 0;
   if (el.tagName === 'text') {
     textInput.value = el.textContent;
+  } else if (el.tagName === 'g') {
+    const t = el.querySelector('text');
+    textInput.value = t ? t.textContent : '';
   }
   updateColorInputs(el);
   selectedElement.classList.add('selected');
@@ -991,8 +1031,17 @@ endInput.addEventListener('input', () => {
 });
 
 textInput.addEventListener('input', () => {
-  if (selectedElement && selectedElement.tagName === 'text') {
+  if (!selectedElement) return;
+  if (selectedElement.tagName === 'text') {
     selectedElement.textContent = textInput.value;
+    const parent = selectedElement.parentNode;
+    if (parent && parent.tagName === 'g') resizeBubbleToFitText(parent);
+  } else if (selectedElement.tagName === 'g') {
+    const text = selectedElement.querySelector('text');
+    if (text) {
+      text.textContent = textInput.value;
+      resizeBubbleToFitText(selectedElement);
+    }
   }
 });
 
