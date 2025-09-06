@@ -7,6 +7,7 @@ A simple in-browser SVG drawing tool with a timeline. Shapes can appear and disa
 - Specify the start and end times for each element.
 - Start and end time fields accept values up to five digits, keeping inputs compact.
 - Edit start/end times, text, stroke, and fill colors of selected elements.
+- Zoom the canvas with the mouse wheel, or resize a selected element by holding Shift while scrolling.
 - Preview visibility with a timeline slider.
 - Save drawings to a JSON file and load them back later.
 - Move elements by selecting them or by holding Ctrl and clicking to temporarily enter selection mode.
