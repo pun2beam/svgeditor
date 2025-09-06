@@ -63,13 +63,21 @@ toolSelect.addEventListener('change', () => {
 
 svg.addEventListener('wheel', e => {
   e.preventDefault();
-  const pt = getMousePos(e);
-  const prevZoom = zoomLevel;
-  const delta = e.deltaY < 0 ? 1.1 : 0.9;
-  zoomLevel = Math.max(0.1, Math.min(10, zoomLevel * delta));
-  panX = pt.x * prevZoom + panX - zoomLevel * pt.x;
-  panY = pt.y * prevZoom + panY - zoomLevel * pt.y;
-  updateTransform();
+  const overSelected =
+    selectedElement &&
+    (e.target === selectedElement || selectedElement.contains(e.target));
+  if (overSelected && e.shiftKey) {
+    const scale = e.deltaY < 0 ? 1.1 : 0.9;
+    scaleElement(selectedElement, scale);
+  } else {
+    const pt = getMousePos(e);
+    const prevZoom = zoomLevel;
+    const delta = e.deltaY < 0 ? 1.1 : 0.9;
+    zoomLevel = Math.max(0.1, Math.min(10, zoomLevel * delta));
+    panX = pt.x * prevZoom + panX - zoomLevel * pt.x;
+    panY = pt.y * prevZoom + panY - zoomLevel * pt.y;
+    updateTransform();
+  }
 });
 
 svg.addEventListener('mousedown', e => {
@@ -378,6 +386,70 @@ function moveElement(el, start, dx, dy) {
       el.setAttribute('x', start.x + dx);
       el.setAttribute('y', start.y + dy);
       break;
+  }
+}
+
+function scaleElement(el, factor) {
+  switch (el.tagName) {
+    case 'rect': {
+      const x = parseFloat(el.getAttribute('x'));
+      const y = parseFloat(el.getAttribute('y'));
+      const w = parseFloat(el.getAttribute('width'));
+      const h = parseFloat(el.getAttribute('height'));
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const nw = w * factor;
+      const nh = h * factor;
+      el.setAttribute('x', cx - nw / 2);
+      el.setAttribute('y', cy - nh / 2);
+      el.setAttribute('width', nw);
+      el.setAttribute('height', nh);
+      break;
+    }
+    case 'circle': {
+      const r = parseFloat(el.getAttribute('r')) * factor;
+      el.setAttribute('r', r);
+      break;
+    }
+    case 'line': {
+      const x1 = parseFloat(el.getAttribute('x1'));
+      const y1 = parseFloat(el.getAttribute('y1'));
+      const x2 = parseFloat(el.getAttribute('x2'));
+      const y2 = parseFloat(el.getAttribute('y2'));
+      const cx = (x1 + x2) / 2;
+      const cy = (y1 + y2) / 2;
+      el.setAttribute('x1', cx + (x1 - cx) * factor);
+      el.setAttribute('y1', cy + (y1 - cy) * factor);
+      el.setAttribute('x2', cx + (x2 - cx) * factor);
+      el.setAttribute('y2', cy + (y2 - cy) * factor);
+      break;
+    }
+    case 'polygon': {
+      const pts = el.getAttribute('points').split(' ').map(p => {
+        const [px, py] = p.split(',').map(Number);
+        return { x: px, y: py };
+      });
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      pts.forEach(p => {
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+      });
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const npts = pts.map(p => ({
+        x: cx + (p.x - cx) * factor,
+        y: cy + (p.y - cy) * factor
+      }));
+      el.setAttribute('points', npts.map(p => `${p.x},${p.y}`).join(' '));
+      break;
+    }
+    case 'text': {
+      const size = (parseFloat(el.getAttribute('font-size')) || 16) * factor;
+      el.setAttribute('font-size', size);
+      break;
+    }
   }
 }
 
