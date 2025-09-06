@@ -23,7 +23,6 @@ function resizeCanvas() {
 
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
-updateTransform();
 
 let currentTool = toolSelect.value;
 let drawing = false;
@@ -46,6 +45,7 @@ let startDragY = 0;
 function updateTransform() {
   canvasContent.setAttribute('transform', `translate(${panX} ${panY}) scale(${zoomLevel})`);
 }
+updateTransform();
 
 toolSelect.addEventListener('change', () => {
   currentTool = toolSelect.value;
@@ -67,9 +67,8 @@ svg.addEventListener('wheel', e => {
   const prevZoom = zoomLevel;
   const delta = e.deltaY < 0 ? 1.1 : 0.9;
   zoomLevel = Math.max(0.1, Math.min(10, zoomLevel * delta));
-  const factor = zoomLevel / prevZoom;
-  panX = pt.x - factor * (pt.x - panX);
-  panY = pt.y - factor * (pt.y - panY);
+  panX = pt.x * prevZoom + panX - zoomLevel * pt.x;
+  panY = pt.y * prevZoom + panY - zoomLevel * pt.y;
   updateTransform();
 });
 
@@ -107,8 +106,8 @@ svg.addEventListener('mousedown', e => {
 
 document.addEventListener('mousemove', e => {
   if (isPanning) {
-    const dx = (e.clientX - startDragX) / zoomLevel;
-    const dy = (e.clientY - startDragY) / zoomLevel;
+    const dx = e.clientX - startDragX;
+    const dy = e.clientY - startDragY;
     panX += dx;
     panY += dy;
     startDragX = e.clientX;
