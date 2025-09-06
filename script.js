@@ -13,6 +13,7 @@ const sendBackwardBtn = document.getElementById('sendBackwardBtn');
 const strokeInput = document.getElementById('strokeColor');
 const fillInput = document.getElementById('fillColor');
 const strokeWidthInput = document.getElementById('strokeWidth');
+const lineTypeSelect = document.getElementById('lineType');
 const toolbar = document.getElementById('toolbar');
 
 function resizeCanvas() {
@@ -295,6 +296,7 @@ function addRect(p1, p2) {
   rect.setAttribute('fill', fillInput.value);
   rect.setAttribute('stroke', strokeInput.value);
   rect.setAttribute('stroke-width', strokeWidthInput.value);
+  if (lineTypeSelect.value) rect.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(rect);
   canvasContent.appendChild(rect);
   selectElement(rect);
@@ -309,6 +311,7 @@ function addCircle(p1, p2) {
   circ.setAttribute('fill', fillInput.value);
   circ.setAttribute('stroke', strokeInput.value);
   circ.setAttribute('stroke-width', strokeWidthInput.value);
+  if (lineTypeSelect.value) circ.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(circ);
   canvasContent.appendChild(circ);
   selectElement(circ);
@@ -322,6 +325,7 @@ function addLine(p1, p2, isArrow) {
   line.setAttribute('y2', p2.y);
   line.setAttribute('stroke', strokeInput.value);
   line.setAttribute('stroke-width', strokeWidthInput.value);
+  if (lineTypeSelect.value) line.setAttribute('stroke-dasharray', lineTypeSelect.value);
   if (isArrow) {
     line.setAttribute('marker-end', 'url(#arrow)');
     ensureArrowDef();
@@ -339,6 +343,7 @@ function finalizePolygon() {
   poly.setAttribute('fill', fillInput.value);
   poly.setAttribute('stroke', strokeInput.value);
   poly.setAttribute('stroke-width', strokeWidthInput.value);
+  if (lineTypeSelect.value) poly.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(poly);
   canvasContent.appendChild(poly);
   selectElement(poly);
@@ -351,6 +356,7 @@ function finalizePolyline() {
   poly.setAttribute('fill', 'none');
   poly.setAttribute('stroke', strokeInput.value);
   poly.setAttribute('stroke-width', strokeWidthInput.value);
+  if (lineTypeSelect.value) poly.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(poly);
   canvasContent.appendChild(poly);
   selectElement(poly);
@@ -366,6 +372,7 @@ function addText(p) {
   t.setAttribute('fill', fillInput.value);
   t.setAttribute('stroke', strokeInput.value);
   t.setAttribute('stroke-width', strokeWidthInput.value);
+  if (lineTypeSelect.value) t.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(t);
   canvasContent.appendChild(t);
   selectElement(t);
@@ -582,6 +589,7 @@ function updateColorInputs(el) {
   fillInput.value = fill === 'none' ? '#ffffff' : rgbToHex(fill);
   const width = getComputedStyle(el).strokeWidth;
   strokeWidthInput.value = parseFloat(width) || 1;
+  lineTypeSelect.value = el.getAttribute('stroke-dasharray') || '';
 }
 
 function rgbToHex(rgb) {
@@ -802,6 +810,17 @@ fillInput.addEventListener('input', () => {
 strokeWidthInput.addEventListener('input', () => {
   if (selectedElement) {
     selectedElement.setAttribute('stroke-width', strokeWidthInput.value);
+  }
+});
+
+lineTypeSelect.addEventListener('change', () => {
+  if (selectedElement) {
+    const val = lineTypeSelect.value;
+    if (val) {
+      selectedElement.setAttribute('stroke-dasharray', val);
+    } else {
+      selectedElement.removeAttribute('stroke-dasharray');
+    }
   }
 });
 
