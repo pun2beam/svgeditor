@@ -39,6 +39,10 @@ let resizeHandle = null;
 let resizing = false;
 let resizeStart = null;
 
+let vertexHandles = [];
+let draggingVertexIndex = null;
+let polygonStart = null;
+
 let zoomLevel = 1;
 let panX = 0;
 let panY = 0;
@@ -63,6 +67,7 @@ toolSelect.addEventListener('change', () => {
     selectedElement = null;
   }
   removeResizeHandle();
+  removeVertexHandles();
   dragging = false;
 });
 
@@ -87,6 +92,9 @@ svg.addEventListener('wheel', e => {
 
 svg.addEventListener('mousedown', e => {
   const pt = getMousePos(e);
+  if (selectedElement && selectedElement.tagName === 'polygon' && e.shiftKey && e.target === selectedElement) {
+    return;
+  }
   const selecting = currentTool === 'select' || e.ctrlKey;
   if (selecting) {
     const { element, distance } = getNearestElement(pt);
@@ -135,6 +143,22 @@ document.addEventListener('mousemove', e => {
     selectedElement.setAttribute('width', newW);
     selectedElement.setAttribute('height', newH);
     positionResizeHandle(selectedElement);
+  } else if (
+    draggingVertexIndex !== null &&
+    selectedElement &&
+    selectedElement.tagName === 'polygon'
+  ) {
+    const pt = getMousePos(e);
+    const dx = pt.x - dragStart.x;
+    const dy = pt.y - dragStart.y;
+    const newPts = polygonStart.points.map((p, i) =>
+      i === draggingVertexIndex ? { x: p.x + dx, y: p.y + dy } : p
+    );
+    selectedElement.setAttribute(
+      'points',
+      newPts.map(p => `${p.x},${p.y}`).join(' ')
+    );
+    updatePolygonHandles(newPts);
   } else if (dragging && selectedElement) {
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
@@ -162,6 +186,7 @@ svg.addEventListener('mouseup', e => {
 document.addEventListener('mouseup', () => {
   isPanning = false;
   resizing = false;
+  draggingVertexIndex = null;
 });
 
 svg.addEventListener('click', e => {
@@ -175,6 +200,18 @@ svg.addEventListener('click', e => {
     canvasContent.appendChild(polyline);
   }
   polyline.setAttribute('points', polygonPoints.map(p => `${p.x},${p.y}`).join(' '));
+});
+
+svg.addEventListener('click', e => {
+  if (
+    selectedElement &&
+    selectedElement.tagName === 'polygon' &&
+    e.shiftKey &&
+    e.target === selectedElement
+  ) {
+    const pt = getMousePos(e);
+    addPointToPolygon(selectedElement, pt);
+  }
 });
 
 svg.addEventListener('dblclick', e => {
@@ -201,7 +238,13 @@ function getNearestElement(pt) {
   let minDist = Infinity;
   let minInnerDist = Infinity;
   Array.from(canvasContent.children).forEach(el => {
-    if (el.tagName === 'defs' || typeof el.getBBox !== 'function' || el.classList.contains('resize-handle')) return;
+    if (
+      el.tagName === 'defs' ||
+      typeof el.getBBox !== 'function' ||
+      el.classList.contains('resize-handle') ||
+      el.classList.contains('vertex-handle')
+    )
+      return;
     const box = el.getBBox();
     const dx = Math.max(box.x - pt.x, 0, pt.x - (box.x + box.width));
     const dy = Math.max(box.y - pt.y, 0, pt.y - (box.y + box.height));
@@ -324,6 +367,7 @@ function ensureArrowDef() {
 function selectElement(el) {
   if (selectedElement) selectedElement.classList.remove('selected');
   removeResizeHandle();
+  removeVertexHandles();
   selectedElement = el;
   startInput.value = el.dataset.start || 0;
   endInput.value = el.dataset.end || 0;
@@ -333,12 +377,14 @@ function selectElement(el) {
   updateColorInputs(el);
   selectedElement.classList.add('selected');
   addResizeHandle(el);
+  if (el.tagName === 'polygon') addPolygonHandles(el);
 }
 
 function deselect() {
   if (selectedElement) selectedElement.classList.remove('selected');
   selectedElement = null;
   removeResizeHandle();
+  removeVertexHandles();
 }
 
 function positionResizeHandle(rect) {
@@ -378,6 +424,101 @@ function removeResizeHandle() {
     resizeHandle.remove();
     resizeHandle = null;
   }
+}
+
+function addPolygonHandles(poly) {
+  removeVertexHandles();
+  const pts = poly
+    .getAttribute('points')
+    .split(' ')
+    .map(p => {
+      const [x, y] = p.split(',').map(Number);
+      return { x, y };
+    });
+  pts.forEach((pt, i) => {
+    const handle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    handle.setAttribute('r', 5);
+    handle.classList.add('vertex-handle');
+    handle.setAttribute('cx', pt.x);
+    handle.setAttribute('cy', pt.y);
+    handle.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      draggingVertexIndex = i;
+      dragStart = getMousePos(e);
+      polygonStart = getElementStart(selectedElement);
+    });
+    handle.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      removePolygonPoint(i);
+    });
+    canvasContent.appendChild(handle);
+    vertexHandles.push(handle);
+  });
+}
+
+function updatePolygonHandles(points) {
+  vertexHandles.forEach((h, i) => {
+    if (!points[i]) return;
+    h.setAttribute('cx', points[i].x);
+    h.setAttribute('cy', points[i].y);
+  });
+}
+
+function removeVertexHandles() {
+  vertexHandles.forEach(h => h.remove());
+  vertexHandles = [];
+  draggingVertexIndex = null;
+}
+
+function removePolygonPoint(index) {
+  if (!selectedElement || selectedElement.tagName !== 'polygon') return;
+  const pts = selectedElement
+    .getAttribute('points')
+    .split(' ')
+    .map(p => {
+      const [x, y] = p.split(',').map(Number);
+      return { x, y };
+    });
+  if (pts.length <= 3) return;
+  pts.splice(index, 1);
+  selectedElement.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+  addPolygonHandles(selectedElement);
+}
+
+function addPointToPolygon(poly, pt) {
+  const pts = poly
+    .getAttribute('points')
+    .split(' ')
+    .map(p => {
+      const [x, y] = p.split(',').map(Number);
+      return { x, y };
+    });
+  let index = 0;
+  let minDist = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    const dist = distanceToSegment(pt, a, b);
+    if (dist < minDist) {
+      minDist = dist;
+      index = i + 1;
+    }
+  }
+  pts.splice(index, 0, pt);
+  poly.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+  addPolygonHandles(poly);
+}
+
+function distanceToSegment(p, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const px = a.x + t * dx;
+  const py = a.y + t * dy;
+  return Math.hypot(p.x - px, p.y - py);
 }
 
 function getElementStart(el) {
@@ -439,6 +580,7 @@ function moveElement(el, start, dx, dy) {
     case 'polygon':
       const pts = start.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
       el.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+      if (el === selectedElement) updatePolygonHandles(pts);
       break;
     case 'text':
       el.setAttribute('x', start.x + dx);
@@ -502,6 +644,7 @@ function scaleElement(el, factor) {
         y: cy + (p.y - cy) * factor
       }));
       el.setAttribute('points', npts.map(p => `${p.x},${p.y}`).join(' '));
+      if (el === selectedElement) updatePolygonHandles(npts);
       break;
     }
     case 'text': {
@@ -515,16 +658,18 @@ function scaleElement(el, factor) {
 function bringToFront(el) {
     canvasContent.appendChild(el);
     if (resizeHandle) canvasContent.appendChild(resizeHandle);
+    vertexHandles.forEach(h => canvasContent.appendChild(h));
 }
 
 function sendToBack(el) {
   canvasContent.insertBefore(el, canvasContent.firstChild);
   if (resizeHandle) canvasContent.appendChild(resizeHandle);
+  vertexHandles.forEach(h => canvasContent.appendChild(h));
 }
 
 saveBtn.addEventListener('click', () => {
   const data = Array.from(canvasContent.children)
-    .filter(el => !el.classList.contains('resize-handle'))
+    .filter(el => !el.classList.contains('resize-handle') && !el.classList.contains('vertex-handle'))
     .map(el => ({
     type: el.tagName,
     attrs: [...el.attributes].reduce((acc, attr) => {
@@ -548,6 +693,7 @@ loadInput.addEventListener('change', () => {
   const reader = new FileReader();
   reader.onload = e => {
     const data = JSON.parse(e.target.result);
+    deselect();
     canvasContent.innerHTML = '';
     data.forEach(obj => {
       const el = document.createElementNS('http://www.w3.org/2000/svg', obj.type);
@@ -565,8 +711,7 @@ loadInput.addEventListener('change', () => {
 deleteBtn.addEventListener('click', () => {
   if (selectedElement) {
     canvasContent.removeChild(selectedElement);
-    selectedElement = null;
-    removeResizeHandle();
+    deselect();
   }
 });
 
@@ -585,8 +730,7 @@ sendBackwardBtn.addEventListener('click', () => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Delete' && selectedElement) {
     canvasContent.removeChild(selectedElement);
-    selectedElement = null;
-    removeResizeHandle();
+    deselect();
   }
 });
 
@@ -627,10 +771,11 @@ fillInput.addEventListener('input', () => {
 function updateVisibility() {
   const t = Number(timeSlider.value);
   Array.from(canvasContent.children).forEach(el => {
-    if (el.classList.contains('resize-handle')) return;
+    if (el.classList.contains('resize-handle') || el.classList.contains('vertex-handle')) return;
     const s = Number(el.dataset.start);
     const e = Number(el.dataset.end);
     el.style.display = t >= s && t <= e ? '' : 'none';
   });
   if (resizeHandle) resizeHandle.style.display = '';
+  vertexHandles.forEach(h => (h.style.display = ''));
 }
