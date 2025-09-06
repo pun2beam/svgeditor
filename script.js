@@ -891,19 +891,39 @@ function sendToBack(el) {
   vertexHandles.forEach(h => canvasContent.appendChild(h));
 }
 
-saveBtn.addEventListener('click', () => {
-  const data = Array.from(canvasContent.children)
-    .filter(el => !el.classList.contains('resize-handle') && !el.classList.contains('vertex-handle'))
-    .map(el => ({
+function serializeElement(el) {
+  const obj = {
     type: el.tagName,
     attrs: [...el.attributes].reduce((acc, attr) => {
       acc[attr.name] = attr.value;
       return acc;
-    }, {}),
-    start: el.dataset.start,
-    end: el.dataset.end,
-    text: el.tagName === 'text' ? el.textContent : undefined
-  }));
+    }, {})
+  };
+  obj.start = el.dataset.start;
+  obj.end = el.dataset.end;
+  if (el.tagName === 'text') obj.text = el.textContent;
+  if (el.tagName === 'g') {
+    obj.children = Array.from(el.children).map(serializeElement);
+  }
+  return obj;
+}
+
+function deserializeElement(obj) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', obj.type);
+  Object.keys(obj.attrs).forEach(k => el.setAttribute(k, obj.attrs[k]));
+  if (obj.start !== undefined) el.dataset.start = obj.start;
+  if (obj.end !== undefined) el.dataset.end = obj.end;
+  if (obj.type === 'text' && obj.text !== undefined) el.textContent = obj.text;
+  if (obj.type === 'g' && Array.isArray(obj.children)) {
+    obj.children.forEach(child => el.appendChild(deserializeElement(child)));
+  }
+  return el;
+}
+
+saveBtn.addEventListener('click', () => {
+  const data = Array.from(canvasContent.children)
+    .filter(el => !el.classList.contains('resize-handle') && !el.classList.contains('vertex-handle'))
+    .map(serializeElement);
   const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -920,11 +940,7 @@ loadInput.addEventListener('change', () => {
     deselect();
     canvasContent.innerHTML = '';
     data.forEach(obj => {
-      const el = document.createElementNS('http://www.w3.org/2000/svg', obj.type);
-      Object.keys(obj.attrs).forEach(k => el.setAttribute(k, obj.attrs[k]));
-      el.dataset.start = obj.start;
-      el.dataset.end = obj.end;
-      if (obj.type === 'text') el.textContent = obj.text;
+      const el = deserializeElement(obj);
       canvasContent.appendChild(el);
     });
     updateVisibility();
