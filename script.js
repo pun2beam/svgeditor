@@ -93,7 +93,12 @@ svg.addEventListener('wheel', e => {
 
 svg.addEventListener('mousedown', e => {
   const pt = getMousePos(e);
-  if (selectedElement && selectedElement.tagName === 'polygon' && e.shiftKey && e.target === selectedElement) {
+  if (
+    selectedElement &&
+    (selectedElement.tagName === 'polygon' || selectedElement.tagName === 'polyline') &&
+    e.shiftKey &&
+    e.target === selectedElement
+  ) {
     return;
   }
   const selecting = currentTool === 'select' || e.ctrlKey;
@@ -119,7 +124,7 @@ svg.addEventListener('mousedown', e => {
     updateVisibility();
     return;
   }
-  if (currentTool === 'polygon') {
+  if (currentTool === 'polygon' || currentTool === 'polyline') {
     return; // handled in click events
   }
   startPoint = pt;
@@ -147,7 +152,7 @@ document.addEventListener('mousemove', e => {
   } else if (
     draggingVertexIndex !== null &&
     selectedElement &&
-    selectedElement.tagName === 'polygon'
+    (selectedElement.tagName === 'polygon' || selectedElement.tagName === 'polyline')
   ) {
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
@@ -159,7 +164,7 @@ document.addEventListener('mousemove', e => {
       'points',
       newPts.map(p => `${p.x},${p.y}`).join(' ')
     );
-    updatePolygonHandles(newPts);
+    updatePolyHandles(newPts);
   } else if (dragging && selectedElement) {
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
@@ -191,13 +196,14 @@ document.addEventListener('mouseup', () => {
 });
 
 svg.addEventListener('click', e => {
-  if (currentTool !== 'polygon') return;
+  if (currentTool !== 'polygon' && currentTool !== 'polyline') return;
   const pt = getMousePos(e);
   polygonPoints.push(pt);
   if (!polyline) {
     polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     polyline.setAttribute('fill', 'none');
     polyline.setAttribute('stroke', strokeInput.value);
+    polyline.setAttribute('stroke-width', strokeWidthInput.value);
     canvasContent.appendChild(polyline);
   }
   polyline.setAttribute('points', polygonPoints.map(p => `${p.x},${p.y}`).join(' '));
@@ -206,23 +212,25 @@ svg.addEventListener('click', e => {
 svg.addEventListener('click', e => {
   if (
     selectedElement &&
-    selectedElement.tagName === 'polygon' &&
+    (selectedElement.tagName === 'polygon' || selectedElement.tagName === 'polyline') &&
     e.shiftKey &&
     e.target === selectedElement
   ) {
     const pt = getMousePos(e);
-    addPointToPolygon(selectedElement, pt);
+    addPointToShape(selectedElement, pt);
   }
 });
 
 svg.addEventListener('dblclick', e => {
-  if (currentTool !== 'polygon') return;
-  if (polygonPoints.length < 3) return;
+  if (currentTool !== 'polygon' && currentTool !== 'polyline') return;
+  const minPts = currentTool === 'polygon' ? 3 : 2;
+  if (polygonPoints.length < minPts) return;
   if (polyline) {
     canvasContent.removeChild(polyline);
     polyline = null;
   }
-  finalizePolygon();
+  if (currentTool === 'polygon') finalizePolygon();
+  else finalizePolyline();
   updateVisibility();
 });
 
@@ -337,6 +345,18 @@ function finalizePolygon() {
   polygonPoints = [];
 }
 
+function finalizePolyline() {
+  const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  poly.setAttribute('points', polygonPoints.map(p => `${p.x},${p.y}`).join(' '));
+  poly.setAttribute('fill', 'none');
+  poly.setAttribute('stroke', strokeInput.value);
+  poly.setAttribute('stroke-width', strokeWidthInput.value);
+  setTime(poly);
+  canvasContent.appendChild(poly);
+  selectElement(poly);
+  polygonPoints = [];
+}
+
 function addText(p) {
   const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
   t.setAttribute('x', p.x);
@@ -383,7 +403,7 @@ function selectElement(el) {
   updateColorInputs(el);
   selectedElement.classList.add('selected');
   addResizeHandle(el);
-  if (el.tagName === 'polygon') addPolygonHandles(el);
+  if (el.tagName === 'polygon' || el.tagName === 'polyline') addPolyHandles(el);
 }
 
 function deselect() {
@@ -432,15 +452,24 @@ function removeResizeHandle() {
   }
 }
 
-function addPolygonHandles(poly) {
-  removeVertexHandles();
-  const pts = poly
+function parsePoints(el) {
+  return el
     .getAttribute('points')
     .split(' ')
+    .filter(s => s)
     .map(p => {
       const [x, y] = p.split(',').map(Number);
       return { x, y };
     });
+}
+
+function serializePoints(pts) {
+  return pts.map(p => `${p.x},${p.y}`).join(' ');
+}
+
+function addPolyHandles(poly) {
+  removeVertexHandles();
+  const pts = parsePoints(poly);
   pts.forEach((pt, i) => {
     const handle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     handle.setAttribute('r', 5);
@@ -455,14 +484,14 @@ function addPolygonHandles(poly) {
     });
     handle.addEventListener('dblclick', e => {
       e.stopPropagation();
-      removePolygonPoint(i);
+      removePoint(i);
     });
     canvasContent.appendChild(handle);
     vertexHandles.push(handle);
   });
 }
 
-function updatePolygonHandles(points) {
+function updatePolyHandles(points) {
   vertexHandles.forEach((h, i) => {
     if (!points[i]) return;
     h.setAttribute('cx', points[i].x);
@@ -476,32 +505,26 @@ function removeVertexHandles() {
   draggingVertexIndex = null;
 }
 
-function removePolygonPoint(index) {
-  if (!selectedElement || selectedElement.tagName !== 'polygon') return;
-  const pts = selectedElement
-    .getAttribute('points')
-    .split(' ')
-    .map(p => {
-      const [x, y] = p.split(',').map(Number);
-      return { x, y };
-    });
-  if (pts.length <= 3) return;
+function removePoint(index) {
+  if (
+    !selectedElement ||
+    (selectedElement.tagName !== 'polygon' && selectedElement.tagName !== 'polyline')
+  )
+    return;
+  const pts = parsePoints(selectedElement);
+  const minPts = selectedElement.tagName === 'polygon' ? 3 : 2;
+  if (pts.length <= minPts) return;
   pts.splice(index, 1);
-  selectedElement.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
-  addPolygonHandles(selectedElement);
+  selectedElement.setAttribute('points', serializePoints(pts));
+  addPolyHandles(selectedElement);
 }
 
-function addPointToPolygon(poly, pt) {
-  const pts = poly
-    .getAttribute('points')
-    .split(' ')
-    .map(p => {
-      const [x, y] = p.split(',').map(Number);
-      return { x, y };
-    });
+function addPointToShape(poly, pt) {
+  const pts = parsePoints(poly);
   let index = 0;
   let minDist = Infinity;
-  for (let i = 0; i < pts.length; i++) {
+  const limit = poly.tagName === 'polygon' ? pts.length : pts.length - 1;
+  for (let i = 0; i < limit; i++) {
     const a = pts[i];
     const b = pts[(i + 1) % pts.length];
     const dist = distanceToSegment(pt, a, b);
@@ -511,8 +534,8 @@ function addPointToPolygon(poly, pt) {
     }
   }
   pts.splice(index, 0, pt);
-  poly.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
-  addPolygonHandles(poly);
+  poly.setAttribute('points', serializePoints(pts));
+  addPolyHandles(poly);
 }
 
 function distanceToSegment(p, a, b) {
@@ -541,11 +564,9 @@ function getElementStart(el) {
         y2: parseFloat(el.getAttribute('y2'))
       };
     case 'polygon':
+    case 'polyline':
       return {
-        points: el.getAttribute('points').split(' ').map(p => {
-          const [x, y] = p.split(',');
-          return { x: parseFloat(x), y: parseFloat(y) };
-        })
+        points: parsePoints(el)
       };
     case 'text':
       return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')) };
@@ -586,9 +607,10 @@ function moveElement(el, start, dx, dy) {
       el.setAttribute('y2', start.y2 + dy);
       break;
     case 'polygon':
+    case 'polyline':
       const pts = start.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
       el.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
-      if (el === selectedElement) updatePolygonHandles(pts);
+      if (el === selectedElement) updatePolyHandles(pts);
       break;
     case 'text':
       el.setAttribute('x', start.x + dx);
@@ -633,12 +655,13 @@ function scaleElement(el, factor) {
       el.setAttribute('y2', cy + (y2 - cy) * factor);
       break;
     }
-    case 'polygon': {
-      const pts = el.getAttribute('points').split(' ').map(p => {
-        const [px, py] = p.split(',').map(Number);
-        return { x: px, y: py };
-      });
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    case 'polygon':
+    case 'polyline': {
+      const pts = parsePoints(el);
+      let minX = Infinity,
+        maxX = -Infinity,
+        minY = Infinity,
+        maxY = -Infinity;
       pts.forEach(p => {
         minX = Math.min(minX, p.x);
         maxX = Math.max(maxX, p.x);
@@ -651,8 +674,8 @@ function scaleElement(el, factor) {
         x: cx + (p.x - cx) * factor,
         y: cy + (p.y - cy) * factor
       }));
-      el.setAttribute('points', npts.map(p => `${p.x},${p.y}`).join(' '));
-      if (el === selectedElement) updatePolygonHandles(npts);
+      el.setAttribute('points', serializePoints(npts));
+      if (el === selectedElement) updatePolyHandles(npts);
       break;
     }
     case 'text': {
