@@ -35,6 +35,31 @@
     </label>
     <label>塗り色: <input type="color" id="fillColor" value="#ffffff" /></label>
     <label>背景色: <input type="color" id="backgroundColor" value="#ffffff" /></label>
+    <label>操作レイヤ:
+      <select id="activeLayer">
+        <option value="0" selected>0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+      </select>
+    </label>
+    <label>表示レイヤ:
+      <span id="displayLayers">
+        <label><input type="checkbox" class="display-layer" value="0" checked />0</label>
+        <label><input type="checkbox" class="display-layer" value="1" checked />1</label>
+        <label><input type="checkbox" class="display-layer" value="2" checked />2</label>
+        <label><input type="checkbox" class="display-layer" value="3" checked />3</label>
+      </span>
+    </label>
+    <label>レイヤ移動:
+      <select id="moveLayer">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+      </select>
+      <button id="moveLayerBtn">移動</button>
+    </label>
     <button id="bringForwardBtn">前面へ</button>
     <button id="sendBackwardBtn">背面へ</button>
     <button id="groupBtn">グループ化</button>

@@ -19,6 +19,10 @@ const backgroundInput = document.getElementById('backgroundColor');
 const strokeWidthInput = document.getElementById('strokeWidth');
 const lineTypeSelect = document.getElementById('lineType');
 const toolbar = document.getElementById('toolbar');
+const activeLayerSelect = document.getElementById('activeLayer');
+const displayLayerCheckboxes = document.querySelectorAll('.display-layer');
+const moveLayerSelect = document.getElementById('moveLayer');
+const moveLayerBtn = document.getElementById('moveLayerBtn');
 
 svg.style.backgroundColor = backgroundInput.value;
 backgroundInput.addEventListener('input', () => {
@@ -67,11 +71,27 @@ function updateTransform() {
 }
 updateTransform();
 
+const layers = [];
+function initLayers() {
+  canvasContent.innerHTML = '';
+  layers.length = 0;
+  for (let i = 0; i < 4; i++) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.dataset.layer = i;
+    canvasContent.appendChild(g);
+    layers.push(g);
+  }
+}
+initLayers();
+
+let activeLayer = Number(activeLayerSelect.value);
+updateVisibility();
+
 toolSelect.addEventListener('change', () => {
   currentTool = toolSelect.value;
   polygonPoints = [];
   if (polyline) {
-    canvasContent.removeChild(polyline);
+    polyline.remove();
     polyline = null;
   }
   deselect();
@@ -79,6 +99,26 @@ toolSelect.addEventListener('change', () => {
   // Bubble tool also relies on the text field; clear it only when switching away
   if (currentTool !== 'text' && currentTool !== 'bubble') {
     textInput.value = '';
+  }
+});
+
+activeLayerSelect.addEventListener('change', () => {
+  activeLayer = Number(activeLayerSelect.value);
+  deselect();
+});
+displayLayerCheckboxes.forEach(cb =>
+  cb.addEventListener('change', updateVisibility)
+);
+moveLayerBtn.addEventListener('click', () => {
+  if (selectedElements.length) {
+    const target = Number(moveLayerSelect.value);
+    const layer = layers[target];
+    selectedElements.forEach(el => {
+      el.dataset.layer = target;
+      layer.appendChild(el);
+    });
+    deselect();
+    updateVisibility();
   }
 });
 
@@ -241,7 +281,7 @@ svg.addEventListener('click', e => {
     polyline.setAttribute('fill', 'none');
     polyline.setAttribute('stroke', strokeInput.value);
     polyline.setAttribute('stroke-width', strokeWidthInput.value);
-    canvasContent.appendChild(polyline);
+    layers[activeLayer].appendChild(polyline);
   }
   polyline.setAttribute('points', polygonPoints.map(p => `${p.x},${p.y}`).join(' '));
 });
@@ -271,7 +311,7 @@ svg.addEventListener('dblclick', e => {
   const minPts = currentTool === 'polygon' ? 3 : 2;
   if (polygonPoints.length < minPts) return;
   if (polyline) {
-    canvasContent.removeChild(polyline);
+    polyline.remove();
     polyline = null;
   }
   if (currentTool === 'polygon') finalizePolygon();
@@ -292,7 +332,7 @@ function getNearestElement(pt) {
   let nearest = null;
   let minDist = Infinity;
   let minInnerDist = Infinity;
-  Array.from(canvasContent.children).forEach(el => {
+  Array.from(layers[activeLayer].children).forEach(el => {
     if (
       el.tagName === 'defs' ||
       typeof el.getBBox !== 'function' ||
@@ -343,7 +383,8 @@ function addRect(p1, p2) {
   rect.setAttribute('stroke-width', strokeWidthInput.value);
   if (lineTypeSelect.value) rect.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(rect);
-  canvasContent.appendChild(rect);
+  rect.dataset.layer = activeLayer;
+  layers[activeLayer].appendChild(rect);
   selectElement(rect);
 }
 
@@ -358,7 +399,8 @@ function addCircle(p1, p2) {
   circ.setAttribute('stroke-width', strokeWidthInput.value);
   if (lineTypeSelect.value) circ.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(circ);
-  canvasContent.appendChild(circ);
+  circ.dataset.layer = activeLayer;
+  layers[activeLayer].appendChild(circ);
   selectElement(circ);
 }
 
@@ -378,7 +420,8 @@ function addLine(p1, p2, isArrow) {
     if (arrowPath) arrowPath.setAttribute('fill', strokeInput.value);
   }
   setTime(line);
-  canvasContent.appendChild(line);
+  line.dataset.layer = activeLayer;
+  layers[activeLayer].appendChild(line);
   selectElement(line);
 }
 
@@ -422,7 +465,11 @@ function addBubble(p1, p2) {
   g.appendChild(tail);
   g.appendChild(text);
   setTime(g);
-  canvasContent.appendChild(g);
+  g.dataset.layer = activeLayer;
+  rect.dataset.layer = activeLayer;
+  tail.dataset.layer = activeLayer;
+  text.dataset.layer = activeLayer;
+  layers[activeLayer].appendChild(g);
   resizeBubbleToFitText(g);
   selectElement(g);
 }
@@ -471,7 +518,8 @@ function finalizePolygon() {
   poly.setAttribute('stroke-width', strokeWidthInput.value);
   if (lineTypeSelect.value) poly.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(poly);
-  canvasContent.appendChild(poly);
+  poly.dataset.layer = activeLayer;
+  layers[activeLayer].appendChild(poly);
   selectElement(poly);
   polygonPoints = [];
 }
@@ -484,7 +532,8 @@ function finalizePolyline() {
   poly.setAttribute('stroke-width', strokeWidthInput.value);
   if (lineTypeSelect.value) poly.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(poly);
-  canvasContent.appendChild(poly);
+  poly.dataset.layer = activeLayer;
+  layers[activeLayer].appendChild(poly);
   selectElement(poly);
   polygonPoints = [];
 }
@@ -515,7 +564,8 @@ function finalizePath() {
   path.setAttribute('stroke-width', strokeWidthInput.value);
   if (lineTypeSelect.value) path.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(path);
-  canvasContent.appendChild(path);
+  path.dataset.layer = activeLayer;
+  layers[activeLayer].appendChild(path);
   selectElement(path);
   polygonPoints = [];
 }
@@ -531,7 +581,8 @@ function addText(p) {
   t.setAttribute('stroke-width', strokeWidthInput.value);
   if (lineTypeSelect.value) t.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(t);
-  canvasContent.appendChild(t);
+  t.dataset.layer = activeLayer;
+  layers[activeLayer].appendChild(t);
   selectElement(t);
 }
 
@@ -970,13 +1021,15 @@ function scaleElement(el, factor) {
 }
 
 function bringToFront(el) {
-    canvasContent.appendChild(el);
-    if (resizeHandle) canvasContent.appendChild(resizeHandle);
-    vertexHandles.forEach(h => canvasContent.appendChild(h));
+  const layer = layers[Number(el.dataset.layer)];
+  layer.appendChild(el);
+  if (resizeHandle) canvasContent.appendChild(resizeHandle);
+  vertexHandles.forEach(h => canvasContent.appendChild(h));
 }
 
 function sendToBack(el) {
-  canvasContent.insertBefore(el, canvasContent.firstChild);
+  const layer = layers[Number(el.dataset.layer)];
+  layer.insertBefore(el, layer.firstChild);
   if (resizeHandle) canvasContent.appendChild(resizeHandle);
   vertexHandles.forEach(h => canvasContent.appendChild(h));
 }
@@ -991,6 +1044,7 @@ function serializeElement(el) {
   };
   obj.start = el.dataset.start;
   obj.end = el.dataset.end;
+  obj.layer = el.dataset.layer;
   if (el.tagName === 'text') obj.text = el.textContent;
   if (el.tagName === 'g') {
     obj.children = Array.from(el.children).map(serializeElement);
@@ -1003,6 +1057,7 @@ function deserializeElement(obj) {
   Object.keys(obj.attrs).forEach(k => el.setAttribute(k, obj.attrs[k]));
   if (obj.start !== undefined) el.dataset.start = obj.start;
   if (obj.end !== undefined) el.dataset.end = obj.end;
+  if (obj.layer !== undefined) el.dataset.layer = obj.layer;
   if (obj.type === 'text' && obj.text !== undefined) el.textContent = obj.text;
   if (obj.type === 'g' && Array.isArray(obj.children)) {
     obj.children.forEach(child => el.appendChild(deserializeElement(child)));
@@ -1011,9 +1066,9 @@ function deserializeElement(obj) {
 }
 
 saveBtn.addEventListener('click', () => {
-  const elements = Array.from(canvasContent.children)
-    .filter(el => !el.classList.contains('resize-handle') && !el.classList.contains('vertex-handle'))
-    .map(serializeElement);
+  const elements = layers.flatMap(layerEl =>
+    Array.from(layerEl.children).map(serializeElement)
+  );
   const exportData = {
     background: backgroundInput.value,
     elements
@@ -1040,10 +1095,11 @@ loadInput.addEventListener('change', () => {
       if (data.background) background = data.background;
     }
     deselect();
-    canvasContent.innerHTML = '';
+    initLayers();
     elements.forEach(obj => {
       const el = deserializeElement(obj);
-      canvasContent.appendChild(el);
+      const layerIdx = Number(obj.layer) || 0;
+      layers[layerIdx].appendChild(el);
     });
     svg.style.backgroundColor = background;
     backgroundInput.value = background;
@@ -1054,7 +1110,7 @@ loadInput.addEventListener('change', () => {
 
 deleteBtn.addEventListener('click', () => {
   if (selectedElements.length) {
-    selectedElements.forEach(el => canvasContent.removeChild(el));
+    selectedElements.forEach(el => el.parentNode && el.parentNode.removeChild(el));
     deselect();
   }
 });
@@ -1077,7 +1133,9 @@ groupBtn.addEventListener('click', () => {
     let minStart = Infinity;
     let maxEnd = -Infinity;
     const elems = [...selectedElements];
-    const indices = elems.map(el => Array.from(canvasContent.children).indexOf(el));
+    const indices = elems.map(el =>
+      Array.from(layers[activeLayer].children).indexOf(el)
+    );
     const minIndex = Math.min(...indices);
     elems.forEach(el => {
       const s = parseFloat(el.dataset.start);
@@ -1088,8 +1146,9 @@ groupBtn.addEventListener('click', () => {
     });
     if (minStart !== Infinity) g.dataset.start = minStart;
     if (maxEnd !== -Infinity) g.dataset.end = maxEnd;
-    const refNode = canvasContent.children[minIndex] || null;
-    canvasContent.insertBefore(g, refNode);
+    g.dataset.layer = activeLayer;
+    const refNode = layers[activeLayer].children[minIndex] || null;
+    layers[activeLayer].insertBefore(g, refNode);
     deselect();
     selectElement(g);
     updateVisibility();
@@ -1099,11 +1158,15 @@ groupBtn.addEventListener('click', () => {
 ungroupBtn.addEventListener('click', () => {
   if (selectedElements.length === 1 && selectedElement.tagName === 'g') {
     const g = selectedElement;
-    const index = Array.from(canvasContent.children).indexOf(g);
+    const index = Array.from(layers[activeLayer].children).indexOf(g);
     const children = Array.from(g.children);
-    canvasContent.removeChild(g);
+    layers[activeLayer].removeChild(g);
     children.forEach((child, i) => {
-      canvasContent.insertBefore(child, canvasContent.children[index + i] || null);
+      child.dataset.layer = activeLayer;
+      layers[activeLayer].insertBefore(
+        child,
+        layers[activeLayer].children[index + i] || null
+      );
     });
     deselect();
     updateVisibility();
@@ -1112,7 +1175,7 @@ ungroupBtn.addEventListener('click', () => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Delete' && selectedElements.length) {
-    selectedElements.forEach(el => canvasContent.removeChild(el));
+    selectedElements.forEach(el => el.parentNode && el.parentNode.removeChild(el));
     deselect();
   }
 });
@@ -1187,11 +1250,15 @@ lineTypeSelect.addEventListener('change', () => {
 function updateVisibility() {
   const start = Number(displayStartInput.value);
   const end = Number(displayEndInput.value);
-  Array.from(canvasContent.children).forEach(el => {
-    if (el.classList.contains('resize-handle') || el.classList.contains('vertex-handle')) return;
-    const s = Number(el.dataset.start);
-    const e = Number(el.dataset.end);
-    el.style.display = e >= start && s <= end ? '' : 'none';
+  layers.forEach((layerEl, idx) => {
+    const visible = displayLayerCheckboxes[idx].checked;
+    layerEl.style.display = visible ? '' : 'none';
+    if (!visible) return;
+    Array.from(layerEl.children).forEach(el => {
+      const s = Number(el.dataset.start);
+      const e = Number(el.dataset.end);
+      el.style.display = e >= start && s <= end ? '' : 'none';
+    });
   });
   if (resizeHandle) resizeHandle.style.display = '';
   vertexHandles.forEach(h => (h.style.display = ''));
