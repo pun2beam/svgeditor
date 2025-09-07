@@ -2,6 +2,8 @@
 
 A simple in-browser SVG drawing tool with a timeline. Shapes can appear and disappear based on start and end times, allowing you to create time-based annotations.
 
+Use the editor online at https://pun2beam.github.io/svgeditor/.
+
 ## Features
 - Draw rectangles, circles, lines, arrows, polygons, curved paths, and text.
 - Specify the start and end times for each element.
