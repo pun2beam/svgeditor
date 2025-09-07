@@ -26,7 +26,8 @@ body { font-family: sans-serif; margin: 0; }
 #endTime,
 #strokeWidth,
 #displayStart,
-#displayEnd {
+#displayEnd,
+#opacity {
   width: 6ch;
 }
 
