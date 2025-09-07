@@ -6,6 +6,7 @@ const endInput = document.getElementById('endTime');
 const textInput = document.getElementById('textInput');
 const saveBtn = document.getElementById('saveBtn');
 const loadInput = document.getElementById('loadInput');
+const importInput = document.getElementById('importInput');
 const displayStartInput = document.getElementById('displayStart');
 const displayEndInput = document.getElementById('displayEnd');
 const deleteBtn = document.getElementById('deleteBtn');
@@ -1224,6 +1225,33 @@ loadInput.addEventListener('change', () => {
     });
     svg.style.backgroundColor = background;
     backgroundInput.value = background;
+    updateVisibility();
+  };
+  reader.readAsText(file);
+});
+
+importInput.addEventListener('change', () => {
+  const file = importInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = JSON.parse(e.target.result);
+    let elements;
+    if (Array.isArray(data)) {
+      elements = data;
+    } else {
+      elements = data.elements || [];
+      if (data.background) {
+        svg.style.backgroundColor = data.background;
+        backgroundInput.value = data.background;
+      }
+    }
+    deselect();
+    elements.forEach(obj => {
+      const el = deserializeElement(obj);
+      const layerIdx = Number(obj.layer) || 0;
+      layers[layerIdx].appendChild(el);
+    });
     updateVisibility();
   };
   reader.readAsText(file);
