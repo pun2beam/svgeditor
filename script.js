@@ -151,7 +151,15 @@ svg.addEventListener('wheel', e => {
   }
 });
 
+svg.addEventListener('contextmenu', e => e.preventDefault());
+
 svg.addEventListener('mousedown', e => {
+  if (e.button === 2) {
+    isPanning = true;
+    startDragX = e.clientX;
+    startDragY = e.clientY;
+    return;
+  }
   const pt = getMousePos(e);
   if (
     selectedElements.length === 1 &&
@@ -191,12 +199,8 @@ svg.addEventListener('mousedown', e => {
       selectionRect.setAttribute('width', 0);
       selectionRect.setAttribute('height', 0);
       canvasContent.appendChild(selectionRect);
-    } else if (e.target === svg) {
-      isPanning = true;
-      startDragX = e.clientX;
-      startDragY = e.clientY;
     } else {
-      deselect();
+      if (e.target !== svg) deselect();
     }
     return; // skip drawing when selecting
   }
