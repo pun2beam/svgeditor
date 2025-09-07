@@ -15,6 +15,7 @@ const groupBtn = document.getElementById('groupBtn');
 const ungroupBtn = document.getElementById('ungroupBtn');
 const strokeInput = document.getElementById('strokeColor');
 const fillInput = document.getElementById('fillColor');
+const opacityInput = document.getElementById('opacity');
 const backgroundInput = document.getElementById('backgroundColor');
 const strokeWidthInput = document.getElementById('strokeWidth');
 const lineTypeSelect = document.getElementById('lineType');
@@ -457,6 +458,7 @@ function addRect(p1, p2) {
   rect.setAttribute('fill', fillInput.value);
   rect.setAttribute('stroke', strokeInput.value);
   rect.setAttribute('stroke-width', strokeWidthInput.value);
+  rect.setAttribute('opacity', opacityInput.value);
   if (lineTypeSelect.value) rect.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(rect);
   rect.dataset.layer = activeLayer;
@@ -473,6 +475,7 @@ function addCircle(p1, p2) {
   circ.setAttribute('fill', fillInput.value);
   circ.setAttribute('stroke', strokeInput.value);
   circ.setAttribute('stroke-width', strokeWidthInput.value);
+  circ.setAttribute('opacity', opacityInput.value);
   if (lineTypeSelect.value) circ.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(circ);
   circ.dataset.layer = activeLayer;
@@ -488,6 +491,7 @@ function addLine(p1, p2, isArrow) {
   line.setAttribute('y2', p2.y);
   line.setAttribute('stroke', strokeInput.value);
   line.setAttribute('stroke-width', strokeWidthInput.value);
+  line.setAttribute('opacity', opacityInput.value);
   if (lineTypeSelect.value) line.setAttribute('stroke-dasharray', lineTypeSelect.value);
   if (isArrow) {
     line.setAttribute('marker-end', 'url(#arrow)');
@@ -510,6 +514,7 @@ function addBubble(p1, p2) {
   g.setAttribute('stroke', strokeInput.value);
   g.setAttribute('fill', fillInput.value);
   g.setAttribute('stroke-width', strokeWidthInput.value);
+  g.setAttribute('opacity', opacityInput.value);
   if (lineTypeSelect.value) g.setAttribute('stroke-dasharray', lineTypeSelect.value);
 
   const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -598,6 +603,7 @@ function finalizePolygon() {
   poly.setAttribute('fill', fillInput.value);
   poly.setAttribute('stroke', strokeInput.value);
   poly.setAttribute('stroke-width', strokeWidthInput.value);
+  poly.setAttribute('opacity', opacityInput.value);
   if (lineTypeSelect.value) poly.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(poly);
   poly.dataset.layer = activeLayer;
@@ -612,6 +618,7 @@ function finalizePolyline() {
   poly.setAttribute('fill', 'none');
   poly.setAttribute('stroke', strokeInput.value);
   poly.setAttribute('stroke-width', strokeWidthInput.value);
+  poly.setAttribute('opacity', opacityInput.value);
   if (lineTypeSelect.value) poly.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(poly);
   poly.dataset.layer = activeLayer;
@@ -644,6 +651,7 @@ function finalizePath() {
   path.setAttribute('fill', 'none');
   path.setAttribute('stroke', strokeInput.value);
   path.setAttribute('stroke-width', strokeWidthInput.value);
+  path.setAttribute('opacity', opacityInput.value);
   if (lineTypeSelect.value) path.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(path);
   path.dataset.layer = activeLayer;
@@ -661,6 +669,7 @@ function addText(p) {
   t.setAttribute('fill', fillInput.value);
   t.setAttribute('stroke', strokeInput.value);
   t.setAttribute('stroke-width', strokeWidthInput.value);
+  t.setAttribute('opacity', opacityInput.value);
   if (lineTypeSelect.value) t.setAttribute('stroke-dasharray', lineTypeSelect.value);
   setTime(t);
   t.dataset.layer = activeLayer;
@@ -961,6 +970,8 @@ function updateColorInputs(el) {
   const width = getComputedStyle(el).strokeWidth;
   strokeWidthInput.value = parseFloat(width) || 1;
   lineTypeSelect.value = el.getAttribute('stroke-dasharray') || '';
+  const opacity = getComputedStyle(el).opacity;
+  opacityInput.value = opacity;
 }
 
 function rgbToHex(rgb) {
@@ -1326,6 +1337,14 @@ lineTypeSelect.addEventListener('change', () => {
         el.removeAttribute('stroke-dasharray');
       }
     });
+  }
+});
+
+opacityInput.addEventListener('input', () => {
+  if (selectedElements.length) {
+    const val = Math.max(0, Math.min(1, parseFloat(opacityInput.value)));
+    opacityInput.value = val;
+    selectedElements.forEach(el => el.setAttribute('opacity', val));
   }
 });
 
