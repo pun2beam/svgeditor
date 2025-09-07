@@ -1,5 +1,14 @@
 body { font-family: sans-serif; margin: 0; }
 #toolbar { margin-bottom: 8px; }
+.toolbar-group {
+  display: inline-block;
+  margin-right: 16px;
+  padding-right: 16px;
+  border-right: 1px solid #ccc;
+}
+.toolbar-group:last-child {
+  border-right: none;
+}
 #canvas { border: 1px solid #ccc; }
 .selected { outline: 1px dashed red; }
 .resize-handle { fill: #ffffff; stroke: #000000; cursor: se-resize; }
