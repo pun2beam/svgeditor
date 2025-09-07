@@ -13,6 +13,8 @@ const bringForwardBtn = document.getElementById('bringForwardBtn');
 const sendBackwardBtn = document.getElementById('sendBackwardBtn');
 const groupBtn = document.getElementById('groupBtn');
 const ungroupBtn = document.getElementById('ungroupBtn');
+const copyBtn = document.getElementById('copyBtn');
+const pasteBtn = document.getElementById('pasteBtn');
 const strokeInput = document.getElementById('strokeColor');
 const fillInput = document.getElementById('fillColor');
 const opacityInput = document.getElementById('opacity');
@@ -72,6 +74,8 @@ let panY = 0;
 let isPanning = false;
 let startDragX = 0;
 let startDragY = 0;
+let clipboard = [];
+let pasteOffset = 0;
 
 function updateTransform() {
   canvasContent.setAttribute('transform', `translate(${panX} ${panY}) scale(${zoomLevel})`);
@@ -1158,6 +1162,30 @@ function deserializeElement(obj) {
   return el;
 }
 
+function copySelected() {
+  if (selectedElements.length) {
+    clipboard = selectedElements.map(serializeElement);
+    pasteOffset = 0;
+  }
+}
+
+function pasteClipboard() {
+  if (!clipboard.length) return;
+  pasteOffset += 10;
+  const newEls = clipboard.map(obj => {
+    const el = deserializeElement(obj);
+    const start = getElementStart(el);
+    moveElement(el, start, pasteOffset, pasteOffset);
+    const layerIdx = Number(el.dataset.layer) || 0;
+    layers[layerIdx].appendChild(el);
+    if (el.tagName === 'line' && el.getAttribute('marker-end')) ensureArrowDef();
+    return el;
+  });
+  deselect();
+  newEls.forEach((el, idx) => selectElement(el, idx !== 0));
+  updateVisibility();
+}
+
 saveBtn.addEventListener('click', () => {
   const elements = layers.flatMap(layerEl =>
     Array.from(layerEl.children).map(serializeElement)
@@ -1207,6 +1235,9 @@ deleteBtn.addEventListener('click', () => {
     deselect();
   }
 });
+
+copyBtn.addEventListener('click', copySelected);
+pasteBtn.addEventListener('click', pasteClipboard);
 
 bringForwardBtn.addEventListener('click', () => {
   if (selectedElements.length) {
@@ -1270,6 +1301,10 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Delete' && selectedElements.length) {
     selectedElements.forEach(el => el.parentNode && el.parentNode.removeChild(el));
     deselect();
+  } else if ((e.key === 'c' || e.key === 'C') && (e.ctrlKey || e.metaKey)) {
+    copySelected();
+  } else if ((e.key === 'v' || e.key === 'V') && (e.ctrlKey || e.metaKey)) {
+    pasteClipboard();
   }
 });
 
