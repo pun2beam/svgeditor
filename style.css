@@ -13,6 +13,12 @@ body { font-family: sans-serif; margin: 0; }
 .selected { outline: 1px dashed red; }
 .resize-handle { fill: #ffffff; stroke: #000000; cursor: se-resize; }
 .vertex-handle { fill: #ffffff; stroke: #000000; cursor: move; }
+.selection-rect {
+  fill: rgba(0, 0, 255, 0.1);
+  stroke: #0000ff;
+  stroke-dasharray: 4;
+  pointer-events: none;
+}
 #startTime,
 #endTime,
 #strokeWidth,

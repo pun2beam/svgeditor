@@ -55,6 +55,11 @@ let resizeHandle = null;
 let resizing = false;
 let resizeStart = null;
 
+let selectionStart = null;
+let selectionRect = null;
+let selectingArea = false;
+let selectionAdditive = false;
+
 let vertexHandles = [];
 let draggingVertexIndex = null;
 let polygonStart = null;
@@ -172,8 +177,20 @@ svg.addEventListener('mousedown', e => {
         elemStarts = selectedElements.map(el => ({ el, start: getElementStart(el) }));
         dragging = true;
       }
+    } else if (e.target === svg && e.button === 0) {
+      selectionAdditive = e.shiftKey;
+      if (!selectionAdditive) deselect();
+      selectionStart = pt;
+      selectingArea = true;
+      selectionRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      selectionRect.setAttribute('class', 'selection-rect');
+      selectionRect.setAttribute('pointer-events', 'none');
+      selectionRect.setAttribute('x', pt.x);
+      selectionRect.setAttribute('y', pt.y);
+      selectionRect.setAttribute('width', 0);
+      selectionRect.setAttribute('height', 0);
+      canvasContent.appendChild(selectionRect);
     } else if (e.target === svg) {
-      deselect();
       isPanning = true;
       startDragX = e.clientX;
       startDragY = e.clientY;
@@ -242,12 +259,57 @@ document.addEventListener('mousemove', e => {
       selectedElement.tagName === 'rect'
     )
       positionResizeHandle(selectedElement);
+  } else if (selectingArea && selectionRect) {
+    const pt = getMousePos(e);
+    const x = Math.min(selectionStart.x, pt.x);
+    const y = Math.min(selectionStart.y, pt.y);
+    const w = Math.abs(pt.x - selectionStart.x);
+    const h = Math.abs(pt.y - selectionStart.y);
+    selectionRect.setAttribute('x', x);
+    selectionRect.setAttribute('y', y);
+    selectionRect.setAttribute('width', w);
+    selectionRect.setAttribute('height', h);
   }
 });
 
 svg.addEventListener('mouseup', e => {
   if (dragging) {
     dragging = false;
+    return;
+  }
+  if (selectingArea) {
+    const pt = getMousePos(e);
+    const x1 = Math.min(selectionStart.x, pt.x);
+    const y1 = Math.min(selectionStart.y, pt.y);
+    const x2 = Math.max(selectionStart.x, pt.x);
+    const y2 = Math.max(selectionStart.y, pt.y);
+    if (selectionRect) {
+      selectionRect.remove();
+      selectionRect = null;
+    }
+    Array.from(layers[activeLayer].children).forEach(el => {
+      if (
+        el.tagName === 'defs' ||
+        el.classList.contains('resize-handle') ||
+        el.classList.contains('vertex-handle') ||
+        typeof el.getBBox !== 'function'
+      )
+        return;
+      const bbox = el.getBBox();
+      if (
+        bbox.x + bbox.width >= x1 &&
+        bbox.x <= x2 &&
+        bbox.y + bbox.height >= y1 &&
+        bbox.y <= y2
+      ) {
+        if (selectionAdditive) {
+          if (!selectedElements.includes(el)) selectElement(el, true);
+        } else {
+          selectElement(el, true);
+        }
+      }
+    });
+    selectingArea = false;
     return;
   }
   if (!drawing) return;
@@ -265,6 +327,13 @@ document.addEventListener('mouseup', () => {
   isPanning = false;
   resizing = false;
   draggingVertexIndex = null;
+  if (selectingArea) {
+    selectingArea = false;
+    if (selectionRect) {
+      selectionRect.remove();
+      selectionRect = null;
+    }
+  }
 });
 
 svg.addEventListener('click', e => {
