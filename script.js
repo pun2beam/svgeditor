@@ -13,9 +13,15 @@ const bringForwardBtn = document.getElementById('bringForwardBtn');
 const sendBackwardBtn = document.getElementById('sendBackwardBtn');
 const strokeInput = document.getElementById('strokeColor');
 const fillInput = document.getElementById('fillColor');
+const backgroundInput = document.getElementById('backgroundColor');
 const strokeWidthInput = document.getElementById('strokeWidth');
 const lineTypeSelect = document.getElementById('lineType');
 const toolbar = document.getElementById('toolbar');
+
+svg.style.backgroundColor = backgroundInput.value;
+backgroundInput.addEventListener('input', () => {
+  svg.style.backgroundColor = backgroundInput.value;
+});
 
 function resizeCanvas() {
   const width = window.innerWidth;
@@ -1003,10 +1009,14 @@ function deserializeElement(obj) {
 }
 
 saveBtn.addEventListener('click', () => {
-  const data = Array.from(canvasContent.children)
+  const elements = Array.from(canvasContent.children)
     .filter(el => !el.classList.contains('resize-handle') && !el.classList.contains('vertex-handle'))
     .map(serializeElement);
-  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+  const exportData = {
+    background: backgroundInput.value,
+    elements
+  };
+  const blob = new Blob([JSON.stringify(exportData)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'drawing.json';
@@ -1019,12 +1029,22 @@ loadInput.addEventListener('change', () => {
   const reader = new FileReader();
   reader.onload = e => {
     const data = JSON.parse(e.target.result);
+    let elements;
+    let background = '#ffffff';
+    if (Array.isArray(data)) {
+      elements = data;
+    } else {
+      elements = data.elements || [];
+      if (data.background) background = data.background;
+    }
     deselect();
     canvasContent.innerHTML = '';
-    data.forEach(obj => {
+    elements.forEach(obj => {
       const el = deserializeElement(obj);
       canvasContent.appendChild(el);
     });
+    svg.style.backgroundColor = background;
+    backgroundInput.value = background;
     updateVisibility();
   };
   reader.readAsText(file);
