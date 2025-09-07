@@ -12,6 +12,7 @@ A simple in-browser SVG drawing tool with a timeline. Shapes can appear and disa
 - Zoom the canvas with the mouse wheel, or resize a selected element by holding Shift while scrolling.
 - Preview visibility with a timeline slider.
 - Save drawings to a JSON file and load them back later.
+- Import additional drawings from JSON without clearing the current canvas.
 - Move elements by selecting them or by holding Ctrl and clicking to temporarily enter selection mode.
 - Copy and paste selected elements using toolbar buttons or Ctrl+C/Ctrl+V shortcuts.
 
@@ -31,7 +32,8 @@ No build step or server is required; everything runs locally.
 4. Drag the timeline slider to preview element visibility.
 5. Use **Save** to download the current drawing as `drawing.json`.
 6. Use the file input next to **Save** to load a previously saved drawing.
-7. Duplicate elements with the **コピー** and **貼り付け** buttons or with keyboard shortcuts.
+7. Use **Import** to merge another saved drawing into the current canvas.
+8. Duplicate elements with the **コピー** and **貼り付け** buttons or with keyboard shortcuts.
 
 ## License
 This project is available under the MIT License.
