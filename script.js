@@ -50,6 +50,7 @@ let dragStart = null;
 let elemStarts = [];
 let dragging = false;
 const SELECT_THRESHOLD = 10;
+const MIN_SIZE = 1;
 
 let resizeHandle = null;
 let resizing = false;
@@ -228,8 +229,8 @@ document.addEventListener('mousemove', e => {
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
     const dy = pt.y - dragStart.y;
-    const newW = Math.max(0, resizeStart.width + dx);
-    const newH = Math.max(0, resizeStart.height + dy);
+    const newW = Math.max(MIN_SIZE, resizeStart.width + dx);
+    const newH = Math.max(MIN_SIZE, resizeStart.height + dy);
     selectedElement.setAttribute('width', newW);
     selectedElement.setAttribute('height', newH);
     positionResizeHandle(selectedElement);
@@ -442,6 +443,7 @@ function addRect(p1, p2) {
   const y = Math.min(p1.y, p2.y);
   const w = Math.abs(p1.x - p2.x);
   const h = Math.abs(p1.y - p2.y);
+  if (w < MIN_SIZE || h < MIN_SIZE) return;
   const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
   rect.setAttribute('x', x);
   rect.setAttribute('y', y);
@@ -540,6 +542,12 @@ function addBubble(p1, p2) {
   text.dataset.layer = activeLayer;
   layers[activeLayer].appendChild(g);
   resizeBubbleToFitText(g);
+  const finalW = parseFloat(rect.getAttribute('width'));
+  const finalH = parseFloat(rect.getAttribute('height'));
+  if (finalW < MIN_SIZE || finalH < MIN_SIZE) {
+    g.remove();
+    return;
+  }
   selectElement(g);
 }
 
@@ -1000,12 +1008,12 @@ function scaleElement(el, factor) {
       const h = parseFloat(el.getAttribute('height'));
       const cx = x + w / 2;
       const cy = y + h / 2;
-      const nw = w * factor;
-      const nh = h * factor;
+      const nw = Math.max(MIN_SIZE, w * factor);
+      const nh = Math.max(MIN_SIZE, h * factor);
       el.setAttribute('x', cx - nw / 2);
       el.setAttribute('y', cy - nh / 2);
       el.setAttribute('width', nw);
-        el.setAttribute('height', nh);
+      el.setAttribute('height', nh);
         if (selectedElements.length === 1 && el === selectedElement)
           positionResizeHandle(el);
         break;
