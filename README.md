@@ -13,6 +13,7 @@ A simple in-browser SVG drawing tool with a timeline. Shapes can appear and disa
 - Preview visibility with a timeline slider.
 - Save drawings to a JSON file and load them back later.
 - Move elements by selecting them or by holding Ctrl and clicking to temporarily enter selection mode.
+- Copy and paste selected elements using toolbar buttons or Ctrl+C/Ctrl+V shortcuts.
 
 ## Getting Started
 1. Clone or download this repository.
@@ -30,6 +31,7 @@ No build step or server is required; everything runs locally.
 4. Drag the timeline slider to preview element visibility.
 5. Use **Save** to download the current drawing as `drawing.json`.
 6. Use the file input next to **Save** to load a previously saved drawing.
+7. Duplicate elements with the **コピー** and **貼り付け** buttons or with keyboard shortcuts.
 
 ## License
 This project is available under the MIT License.
