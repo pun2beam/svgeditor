@@ -33,8 +33,9 @@ let startPoint = null;
 let polygonPoints = [];
 let polyline = null;
 let selectedElement = null;
+let selectedElements = [];
 let dragStart = null;
-let elemStart = null;
+let elemStarts = [];
 let dragging = false;
 const SELECT_THRESHOLD = 10;
 
@@ -65,12 +66,7 @@ toolSelect.addEventListener('change', () => {
     canvasContent.removeChild(polyline);
     polyline = null;
   }
-  if (selectedElement) {
-    selectedElement.classList.remove('selected');
-    selectedElement = null;
-  }
-  removeResizeHandle();
-  removeVertexHandles();
+  deselect();
   dragging = false;
   // Bubble tool also relies on the text field; clear it only when switching away
   if (currentTool !== 'text' && currentTool !== 'bubble') {
@@ -80,12 +76,16 @@ toolSelect.addEventListener('change', () => {
 
 svg.addEventListener('wheel', e => {
   e.preventDefault();
-  const overSelected =
-    selectedElement &&
-    (e.target === selectedElement || selectedElement.contains(e.target));
+  const overSelected = selectedElements.some(
+    el => e.target === el || el.contains(e.target)
+  );
   if (overSelected && e.shiftKey) {
     const scale = e.deltaY < 0 ? 1.1 : 0.9;
-    scaleElement(selectedElement, scale);
+    selectedElements.forEach(el => {
+      scaleElement(el, scale);
+      if (selectedElements.length === 1 && el.tagName === 'rect')
+        positionResizeHandle(el);
+    });
   } else {
     const pt = getMousePos(e);
     const prevZoom = zoomLevel;
@@ -100,6 +100,7 @@ svg.addEventListener('wheel', e => {
 svg.addEventListener('mousedown', e => {
   const pt = getMousePos(e);
   if (
+    selectedElements.length === 1 &&
     selectedElement &&
     (selectedElement.tagName === 'polygon' ||
       selectedElement.tagName === 'polyline' ||
@@ -113,10 +114,16 @@ svg.addEventListener('mousedown', e => {
   if (selecting) {
     const { element, distance } = getNearestElement(pt);
     if (element && distance <= SELECT_THRESHOLD) {
-      selectElement(element);
-      dragStart = pt;
-      elemStart = getElementStart(selectedElement);
-      dragging = true;
+      if (e.shiftKey) {
+        selectElement(element, true);
+      } else {
+        if (!selectedElements.includes(element)) {
+          selectElement(element);
+        }
+        dragStart = pt;
+        elemStarts = selectedElements.map(el => ({ el, start: getElementStart(el) }));
+        dragging = true;
+      }
     } else if (e.target === svg) {
       deselect();
       isPanning = true;
@@ -152,7 +159,7 @@ document.addEventListener('mousemove', e => {
     startDragX = e.clientX;
     startDragY = e.clientY;
     updateTransform();
-  } else if (resizing && selectedElement) {
+  } else if (resizing && selectedElements.length === 1 && selectedElement) {
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
     const dy = pt.y - dragStart.y;
@@ -163,6 +170,7 @@ document.addEventListener('mousemove', e => {
     positionResizeHandle(selectedElement);
   } else if (
     draggingVertexIndex !== null &&
+    selectedElements.length === 1 &&
     selectedElement &&
     (selectedElement.tagName === 'polygon' ||
       selectedElement.tagName === 'polyline' ||
@@ -176,12 +184,16 @@ document.addEventListener('mousemove', e => {
     );
     setPoints(selectedElement, newPts);
     updatePolyHandles(newPts);
-  } else if (dragging && selectedElement) {
+  } else if (dragging && selectedElements.length) {
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
     const dy = pt.y - dragStart.y;
-    moveElement(selectedElement, elemStart, dx, dy);
-    if (selectedElement.tagName === 'rect') positionResizeHandle(selectedElement);
+    elemStarts.forEach(({ el, start }) => moveElement(el, start, dx, dy));
+    if (
+      selectedElements.length === 1 &&
+      selectedElement.tagName === 'rect'
+    )
+      positionResizeHandle(selectedElement);
   }
 });
 
@@ -228,6 +240,7 @@ svg.addEventListener('click', e => {
 
 svg.addEventListener('click', e => {
   if (
+    selectedElements.length === 1 &&
     selectedElement &&
     (selectedElement.tagName === 'polygon' ||
       selectedElement.tagName === 'polyline' ||
@@ -533,49 +546,73 @@ function ensureArrowDef() {
   svg.insertBefore(defs, svg.firstChild);
 }
 
-function selectElement(el) {
-  if (selectedElement) {
-    selectedElement.classList.remove('selected');
-    if (selectedElement.tagName === 'g') {
-      selectedElement.querySelectorAll('*').forEach(c =>
-        c.classList.remove('selected')
-      );
+function selectElement(el, additive = false) {
+  if (additive) {
+    const idx = selectedElements.indexOf(el);
+    if (idx !== -1) {
+      el.classList.remove('selected');
+      if (el.tagName === 'g') {
+        el.querySelectorAll('*').forEach(c => c.classList.remove('selected'));
+      }
+      selectedElements.splice(idx, 1);
+      if (selectedElement === el)
+        selectedElement = selectedElements[selectedElements.length - 1] || null;
+    } else {
+      selectedElements.push(el);
+      selectedElement = el;
+      el.classList.add('selected');
+      if (el.tagName === 'g') {
+        el.querySelectorAll('*').forEach(c => c.classList.add('selected'));
+      }
+    }
+  } else {
+    selectedElements.forEach(sel => {
+      sel.classList.remove('selected');
+      if (sel.tagName === 'g')
+        sel.querySelectorAll('*').forEach(c => c.classList.remove('selected'));
+    });
+    selectedElements = [el];
+    selectedElement = el;
+    el.classList.add('selected');
+    if (el.tagName === 'g') {
+      el.querySelectorAll('*').forEach(c => c.classList.add('selected'));
     }
   }
   removeResizeHandle();
   removeVertexHandles();
-  selectedElement = el;
-  startInput.value = el.dataset.start || 0;
-  endInput.value = el.dataset.end || 0;
-  if (el.tagName === 'text') {
-    textInput.value = el.textContent;
-  } else if (el.tagName === 'g') {
-    const t = el.querySelector('text');
-    textInput.value = t ? t.textContent : '';
+  if (selectedElements.length === 1) {
+    startInput.value = el.dataset.start || 0;
+    endInput.value = el.dataset.end || 0;
+    if (el.tagName === 'text') {
+      textInput.value = el.textContent;
+    } else if (el.tagName === 'g') {
+      const t = el.querySelector('text');
+      textInput.value = t ? t.textContent : '';
+    } else {
+      textInput.value = '';
+    }
+    updateColorInputs(el);
+    addResizeHandle(el);
+    if (
+      el.tagName === 'polygon' ||
+      el.tagName === 'polyline' ||
+      el.tagName === 'path'
+    )
+      addPolyHandles(el);
+  } else {
+    startInput.value = '';
+    endInput.value = '';
+    textInput.value = '';
   }
-  updateColorInputs(el);
-  selectedElement.classList.add('selected');
-  if (el.tagName === 'g') {
-    el.querySelectorAll('*').forEach(c => c.classList.add('selected'));
-  }
-  addResizeHandle(el);
-  if (
-    el.tagName === 'polygon' ||
-    el.tagName === 'polyline' ||
-    el.tagName === 'path'
-  )
-    addPolyHandles(el);
 }
 
 function deselect() {
-  if (selectedElement) {
-    selectedElement.classList.remove('selected');
-    if (selectedElement.tagName === 'g') {
-      selectedElement.querySelectorAll('*').forEach(c =>
-        c.classList.remove('selected')
-      );
-    }
-  }
+  selectedElements.forEach(el => {
+    el.classList.remove('selected');
+    if (el.tagName === 'g')
+      el.querySelectorAll('*').forEach(c => c.classList.remove('selected'));
+  });
+  selectedElements = [];
   selectedElement = null;
   removeResizeHandle();
   removeVertexHandles();
@@ -698,6 +735,7 @@ function removeVertexHandles() {
 
 function removePoint(index) {
   if (
+    selectedElements.length !== 1 ||
     !selectedElement ||
     (selectedElement.tagName !== 'polygon' &&
       selectedElement.tagName !== 'polyline' &&
@@ -806,14 +844,15 @@ function moveElement(el, start, dx, dy) {
       el.setAttribute('x2', start.x2 + dx);
       el.setAttribute('y2', start.y2 + dy);
       break;
-    case 'polygon':
-    case 'polyline':
-    case 'path': {
-      const pts = start.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-      setPoints(el, pts);
-      if (el === selectedElement) updatePolyHandles(pts);
-      break;
-    }
+      case 'polygon':
+      case 'polyline':
+      case 'path': {
+        const pts = start.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+        setPoints(el, pts);
+        if (selectedElements.length === 1 && el === selectedElement)
+          updatePolyHandles(pts);
+        break;
+      }
     case 'text':
       el.setAttribute('x', start.x + dx);
       el.setAttribute('y', start.y + dy);
@@ -838,10 +877,11 @@ function scaleElement(el, factor) {
       el.setAttribute('x', cx - nw / 2);
       el.setAttribute('y', cy - nh / 2);
       el.setAttribute('width', nw);
-      el.setAttribute('height', nh);
-      if (el === selectedElement) positionResizeHandle(el);
-      break;
-    }
+        el.setAttribute('height', nh);
+        if (selectedElements.length === 1 && el === selectedElement)
+          positionResizeHandle(el);
+        break;
+      }
     case 'circle': {
       const r = parseFloat(el.getAttribute('r')) * factor;
       el.setAttribute('r', r);
@@ -880,10 +920,11 @@ function scaleElement(el, factor) {
         x: cx + (p.x - cx) * factor,
         y: cy + (p.y - cy) * factor
       }));
-      setPoints(el, npts);
-      if (el === selectedElement) updatePolyHandles(npts);
-      break;
-    }
+        setPoints(el, npts);
+        if (selectedElements.length === 1 && el === selectedElement)
+          updatePolyHandles(npts);
+        break;
+      }
     case 'text': {
       const size = (parseFloat(el.getAttribute('font-size')) || 16) * factor;
       el.setAttribute('font-size', size);
@@ -990,27 +1031,27 @@ loadInput.addEventListener('change', () => {
 });
 
 deleteBtn.addEventListener('click', () => {
-  if (selectedElement) {
-    canvasContent.removeChild(selectedElement);
+  if (selectedElements.length) {
+    selectedElements.forEach(el => canvasContent.removeChild(el));
     deselect();
   }
 });
 
 bringForwardBtn.addEventListener('click', () => {
-  if (selectedElement) {
-    bringToFront(selectedElement);
+  if (selectedElements.length) {
+    selectedElements.forEach(el => bringToFront(el));
   }
 });
 
 sendBackwardBtn.addEventListener('click', () => {
-  if (selectedElement) {
-    sendToBack(selectedElement);
+  if (selectedElements.length) {
+    selectedElements.forEach(el => sendToBack(el));
   }
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Delete' && selectedElement) {
-    canvasContent.removeChild(selectedElement);
+  if (e.key === 'Delete' && selectedElements.length) {
+    selectedElements.forEach(el => canvasContent.removeChild(el));
     deselect();
   }
 });
@@ -1019,60 +1060,66 @@ displayStartInput.addEventListener('input', updateVisibility);
 displayEndInput.addEventListener('input', updateVisibility);
 
 startInput.addEventListener('input', () => {
-  if (selectedElement) {
-    selectedElement.dataset.start = startInput.value;
+  if (selectedElements.length) {
+    selectedElements.forEach(el => (el.dataset.start = startInput.value));
     updateVisibility();
   }
 });
 
 endInput.addEventListener('input', () => {
-  if (selectedElement) {
-    selectedElement.dataset.end = endInput.value;
+  if (selectedElements.length) {
+    selectedElements.forEach(el => (el.dataset.end = endInput.value));
     updateVisibility();
   }
 });
 
 textInput.addEventListener('input', () => {
-  if (!selectedElement) return;
-  if (selectedElement.tagName === 'text') {
-    selectedElement.textContent = textInput.value;
-    const parent = selectedElement.parentNode;
-    if (parent && parent.tagName === 'g') resizeBubbleToFitText(parent);
-  } else if (selectedElement.tagName === 'g') {
-    const text = selectedElement.querySelector('text');
-    if (text) {
-      text.textContent = textInput.value;
-      resizeBubbleToFitText(selectedElement);
+  if (!selectedElements.length) return;
+  selectedElements.forEach(el => {
+    if (el.tagName === 'text') {
+      el.textContent = textInput.value;
+      const parent = el.parentNode;
+      if (parent && parent.tagName === 'g') resizeBubbleToFitText(parent);
+    } else if (el.tagName === 'g') {
+      const text = el.querySelector('text');
+      if (text) {
+        text.textContent = textInput.value;
+        resizeBubbleToFitText(el);
+      }
     }
-  }
+  });
 });
 
 strokeInput.addEventListener('input', () => {
-  if (selectedElement) {
-    selectedElement.setAttribute('stroke', strokeInput.value);
+  if (selectedElements.length) {
+    selectedElements.forEach(el => el.setAttribute('stroke', strokeInput.value));
   }
 });
 
 fillInput.addEventListener('input', () => {
-  if (selectedElement) {
-    selectedElement.setAttribute('fill', fillInput.value);
+  if (selectedElements.length) {
+    selectedElements.forEach(el => el.setAttribute('fill', fillInput.value));
   }
 });
 
 strokeWidthInput.addEventListener('input', () => {
-  if (selectedElement) {
-    selectedElement.setAttribute('stroke-width', strokeWidthInput.value);
+  if (selectedElements.length) {
+    selectedElements.forEach(el =>
+      el.setAttribute('stroke-width', strokeWidthInput.value)
+    );
   }
 });
 
 lineTypeSelect.addEventListener('change', () => {
-  if (selectedElement) {
+  if (selectedElements.length) {
     const val = lineTypeSelect.value;
-    if (val) {
-      selectedElement.setAttribute('stroke-dasharray', val);
-    } else {
-      selectedElement.removeAttribute('stroke-dasharray');
-    }
+    selectedElements.forEach(el => {
+      if (val) {
+        el.setAttribute('stroke-dasharray', val);
+      } else {
+        el.removeAttribute('stroke-dasharray');
+      }
+    });
   }
 });
 
