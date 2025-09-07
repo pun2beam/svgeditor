@@ -154,6 +154,7 @@ svg.addEventListener('wheel', e => {
 svg.addEventListener('contextmenu', e => e.preventDefault());
 
 svg.addEventListener('mousedown', e => {
+  e.preventDefault();
   if (e.button === 2) {
     isPanning = true;
     startDragX = e.clientX;
