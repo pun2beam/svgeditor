@@ -5,8 +5,10 @@ body { font-family: sans-serif; margin: 0; }
 .resize-handle { fill: #ffffff; stroke: #000000; cursor: se-resize; }
 .vertex-handle { fill: #ffffff; stroke: #000000; cursor: move; }
 #startTime,
+#endTime,
 #strokeWidth,
-#endTime {
+#displayStart,
+#displayEnd {
   width: 6ch;
 }
 
