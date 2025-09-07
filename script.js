@@ -11,6 +11,8 @@ const displayEndInput = document.getElementById('displayEnd');
 const deleteBtn = document.getElementById('deleteBtn');
 const bringForwardBtn = document.getElementById('bringForwardBtn');
 const sendBackwardBtn = document.getElementById('sendBackwardBtn');
+const groupBtn = document.getElementById('groupBtn');
+const ungroupBtn = document.getElementById('ungroupBtn');
 const strokeInput = document.getElementById('strokeColor');
 const fillInput = document.getElementById('fillColor');
 const strokeWidthInput = document.getElementById('strokeWidth');
@@ -1046,6 +1048,45 @@ bringForwardBtn.addEventListener('click', () => {
 sendBackwardBtn.addEventListener('click', () => {
   if (selectedElements.length) {
     selectedElements.forEach(el => sendToBack(el));
+  }
+});
+
+groupBtn.addEventListener('click', () => {
+  if (selectedElements.length > 1) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    let minStart = Infinity;
+    let maxEnd = -Infinity;
+    const elems = [...selectedElements];
+    const indices = elems.map(el => Array.from(canvasContent.children).indexOf(el));
+    const minIndex = Math.min(...indices);
+    elems.forEach(el => {
+      const s = parseFloat(el.dataset.start);
+      const e = parseFloat(el.dataset.end);
+      if (!isNaN(s)) minStart = Math.min(minStart, s);
+      if (!isNaN(e)) maxEnd = Math.max(maxEnd, e);
+      g.appendChild(el);
+    });
+    if (minStart !== Infinity) g.dataset.start = minStart;
+    if (maxEnd !== -Infinity) g.dataset.end = maxEnd;
+    const refNode = canvasContent.children[minIndex] || null;
+    canvasContent.insertBefore(g, refNode);
+    deselect();
+    selectElement(g);
+    updateVisibility();
+  }
+});
+
+ungroupBtn.addEventListener('click', () => {
+  if (selectedElements.length === 1 && selectedElement.tagName === 'g') {
+    const g = selectedElement;
+    const index = Array.from(canvasContent.children).indexOf(g);
+    const children = Array.from(g.children);
+    canvasContent.removeChild(g);
+    children.forEach((child, i) => {
+      canvasContent.insertBefore(child, canvasContent.children[index + i] || null);
+    });
+    deselect();
+    updateVisibility();
   }
 });
 
