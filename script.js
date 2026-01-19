@@ -18,6 +18,7 @@ const copyBtn = document.getElementById('copyBtn');
 const pasteBtn = document.getElementById('pasteBtn');
 const strokeInput = document.getElementById('strokeColor');
 const fillInput = document.getElementById('fillColor');
+const fillEnabledInput = document.getElementById('fillEnabled');
 const opacityInput = document.getElementById('opacity');
 const backgroundInput = document.getElementById('backgroundColor');
 const strokeWidthInput = document.getElementById('strokeWidth');
@@ -32,6 +33,7 @@ svg.style.backgroundColor = backgroundInput.value;
 backgroundInput.addEventListener('input', () => {
   svg.style.backgroundColor = backgroundInput.value;
 });
+syncFillInputState();
 
 function resizeCanvas() {
   const width = window.innerWidth;
@@ -449,6 +451,26 @@ function setTime(el) {
   el.dataset.end = endInput.value;
 }
 
+function elementSupportsFill(el) {
+  return ['rect', 'circle', 'polygon', 'path', 'g'].includes(el.tagName);
+}
+
+function getFillValue() {
+  return fillEnabledInput.checked ? fillInput.value : 'none';
+}
+
+function syncFillInputState() {
+  fillInput.disabled = !fillEnabledInput.checked;
+}
+
+function applyFillToSelection() {
+  if (!selectedElements.length) return;
+  const fill = getFillValue();
+  selectedElements.forEach(el => {
+    if (elementSupportsFill(el)) el.setAttribute('fill', fill);
+  });
+}
+
 function addRect(p1, p2) {
   const x = Math.min(p1.x, p2.x);
   const y = Math.min(p1.y, p2.y);
@@ -460,7 +482,7 @@ function addRect(p1, p2) {
   rect.setAttribute('y', y);
   rect.setAttribute('width', w);
   rect.setAttribute('height', h);
-  rect.setAttribute('fill', fillInput.value);
+  rect.setAttribute('fill', getFillValue());
   rect.setAttribute('stroke', strokeInput.value);
   rect.setAttribute('stroke-width', strokeWidthInput.value);
   rect.setAttribute('opacity', opacityInput.value);
@@ -477,7 +499,7 @@ function addCircle(p1, p2) {
   circ.setAttribute('cx', p1.x);
   circ.setAttribute('cy', p1.y);
   circ.setAttribute('r', r);
-  circ.setAttribute('fill', fillInput.value);
+  circ.setAttribute('fill', getFillValue());
   circ.setAttribute('stroke', strokeInput.value);
   circ.setAttribute('stroke-width', strokeWidthInput.value);
   circ.setAttribute('opacity', opacityInput.value);
@@ -517,7 +539,7 @@ function addBubble(p1, p2) {
   const h = Math.abs(p1.y - p2.y);
   const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   g.setAttribute('stroke', strokeInput.value);
-  g.setAttribute('fill', fillInput.value);
+  g.setAttribute('fill', getFillValue());
   g.setAttribute('stroke-width', strokeWidthInput.value);
   g.setAttribute('opacity', opacityInput.value);
   if (lineTypeSelect.value) g.setAttribute('stroke-dasharray', lineTypeSelect.value);
@@ -605,7 +627,7 @@ function resizeBubbleToFitText(g) {
 function finalizePolygon() {
   const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
   poly.setAttribute('points', polygonPoints.map(p => `${p.x},${p.y}`).join(' '));
-  poly.setAttribute('fill', fillInput.value);
+  poly.setAttribute('fill', getFillValue());
   poly.setAttribute('stroke', strokeInput.value);
   poly.setAttribute('stroke-width', strokeWidthInput.value);
   poly.setAttribute('opacity', opacityInput.value);
@@ -972,6 +994,8 @@ function updateColorInputs(el) {
   strokeInput.value = stroke === 'none' ? '#000000' : rgbToHex(stroke);
   const fill = getComputedStyle(el).fill;
   fillInput.value = fill === 'none' ? '#ffffff' : rgbToHex(fill);
+  fillEnabledInput.checked = fill !== 'none';
+  syncFillInputState();
   const width = getComputedStyle(el).strokeWidth;
   strokeWidthInput.value = parseFloat(width) || 1;
   lineTypeSelect.value = el.getAttribute('stroke-dasharray') || '';
@@ -1377,9 +1401,14 @@ strokeInput.addEventListener('input', () => {
 });
 
 fillInput.addEventListener('input', () => {
-  if (selectedElements.length) {
-    selectedElements.forEach(el => el.setAttribute('fill', fillInput.value));
+  if (fillEnabledInput.checked) {
+    applyFillToSelection();
   }
+});
+
+fillEnabledInput.addEventListener('change', () => {
+  syncFillInputState();
+  applyFillToSelection();
 });
 
 strokeWidthInput.addEventListener('input', () => {
