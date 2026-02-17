@@ -28,6 +28,7 @@ const activeLayerSelect = document.getElementById('activeLayer');
 const displayLayerCheckboxes = document.querySelectorAll('.display-layer');
 const moveLayerSelect = document.getElementById('moveLayer');
 const moveLayerBtn = document.getElementById('moveLayerBtn');
+const cursorPositionDisplay = document.getElementById('cursorPositionDisplay');
 
 svg.style.backgroundColor = backgroundInput.value;
 backgroundInput.addEventListener('input', () => {
@@ -160,6 +161,9 @@ svg.addEventListener('wheel', e => {
 });
 
 svg.addEventListener('contextmenu', e => e.preventDefault());
+
+svg.addEventListener('mousemove', updateCursorPositionDisplay);
+svg.addEventListener('mouseleave', resetCursorPositionDisplay);
 
 svg.addEventListener('mousedown', e => {
   e.preventDefault();
@@ -409,6 +413,15 @@ function getMousePos(evt) {
   pt.y = evt.clientY;
   const ctm = canvasContent.getScreenCTM();
   return pt.matrixTransform(ctm.inverse());
+}
+
+function updateCursorPositionDisplay(evt) {
+  const pt = getMousePos(evt);
+  cursorPositionDisplay.textContent = `カーソル座標: ${pt.x.toFixed(1)}, ${pt.y.toFixed(1)}`;
+}
+
+function resetCursorPositionDisplay() {
+  cursorPositionDisplay.textContent = 'カーソル座標: --, --';
 }
 
 function getNearestElement(pt) {
