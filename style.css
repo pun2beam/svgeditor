@@ -46,3 +46,10 @@ body { font-family: sans-serif; margin: 0; }
 .custom-button:hover {
   background: #aeafb0;
 }
+
+
+.cursor-position-display {
+  display: inline-block;
+  min-width: 22ch;
+  font-variant-numeric: tabular-nums;
+}
