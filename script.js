@@ -14,6 +14,7 @@ const bringForwardBtn = document.getElementById('bringForwardBtn');
 const sendBackwardBtn = document.getElementById('sendBackwardBtn');
 const groupBtn = document.getElementById('groupBtn');
 const ungroupBtn = document.getElementById('ungroupBtn');
+const makeHoleBtn = document.getElementById('makeHoleBtn');
 const copyBtn = document.getElementById('copyBtn');
 const pasteBtn = document.getElementById('pasteBtn');
 const strokeInput = document.getElementById('strokeColor');
@@ -786,7 +787,7 @@ function selectElement(el, additive = false) {
     if (
       el.tagName === 'polygon' ||
       el.tagName === 'polyline' ||
-      el.tagName === 'path'
+      (el.tagName === 'path' && !el.hasAttribute('fill-rule'))
     )
       addPolyHandles(el);
   } else {
@@ -986,10 +987,13 @@ function getElementStart(el) {
       };
     case 'polygon':
     case 'polyline':
-    case 'path':
       return {
         points: getPoints(el)
       };
+    case 'path':
+      return el.hasAttribute('fill-rule')
+        ? { d: el.getAttribute('d') || '' }
+        : { points: getPoints(el) };
     case 'text':
       return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')) };
     case 'g':
@@ -1041,6 +1045,19 @@ function moveElement(el, start, dx, dy) {
       case 'polygon':
       case 'polyline':
       case 'path': {
+        if (el.tagName === 'path' && Object.prototype.hasOwnProperty.call(start, 'd')) {
+          const translated = (start.d || '').replace(/([MLC])\s*([^MLCZmlcz]*)/g, (match, cmd, coords) => {
+            const nums = coords.trim().split(/[ ,]+/).filter(Boolean).map(Number);
+            if (!nums.length) return match;
+            for (let i = 0; i + 1 < nums.length; i += 2) {
+              nums[i] += dx;
+              nums[i + 1] += dy;
+            }
+            return `${cmd} ${nums.join(' ')}`;
+          });
+          el.setAttribute('d', translated);
+          break;
+        }
         const pts = start.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
         setPoints(el, pts);
         if (selectedElements.length === 1 && el === selectedElement)
@@ -1097,6 +1114,7 @@ function scaleElement(el, factor) {
     case 'polygon':
     case 'polyline':
     case 'path': {
+      if (el.tagName === 'path' && el.hasAttribute('fill-rule')) return;
       const pts = getPoints(el);
       let minX = Infinity,
         maxX = -Infinity,
@@ -1153,6 +1171,91 @@ function scaleElement(el, factor) {
       break;
     }
   }
+}
+
+function isClosedPathElement(el) {
+  if (el.tagName !== 'path') return false;
+  const d = (el.getAttribute('d') || '').trim();
+  return /[zZ]\s*$/.test(d);
+}
+
+function isHoleCompatibleShape(el) {
+  return el.tagName === 'polygon' || isClosedPathElement(el);
+}
+
+function getShapeSubpathD(el) {
+  if (el.tagName === 'polygon') {
+    const pts = getPoints(el);
+    if (pts.length < 3) return null;
+    return `M ${pts.map(p => `${p.x} ${p.y}`).join(' L ')} Z`;
+  }
+  if (isClosedPathElement(el)) {
+    return (el.getAttribute('d') || '').trim();
+  }
+  return null;
+}
+
+function createHolePathFromSelection() {
+  if (selectedElements.length < 2) {
+    alert('穴あきパス化には2つ以上の図形を選択してください。');
+    return;
+  }
+
+  const selectedLayer = selectedElements[0].dataset.layer;
+  const sameLayer = selectedElements.every(el => el.dataset.layer === selectedLayer);
+  if (!sameLayer) {
+    alert('同じレイヤの図形を選択してください。');
+    return;
+  }
+
+  const unsupported = selectedElements.filter(el => !isHoleCompatibleShape(el));
+  if (unsupported.length) {
+    alert('穴あきパス化は polygon と閉じた path のみ対応しています。');
+    return;
+  }
+
+  const subpaths = selectedElements.map(getShapeSubpathD);
+  if (subpaths.some(d => !d)) {
+    alert('パス変換に失敗しました。図形を確認してください。');
+    return;
+  }
+
+  const reference = selectedElements[0];
+  const layerIndex = Number(selectedLayer) || 0;
+  const layer = layers[layerIndex];
+  const allChildren = Array.from(layer.children);
+  const indices = selectedElements.map(el => allChildren.indexOf(el)).filter(i => i >= 0);
+  const insertIndex = indices.length ? Math.min(...indices) : layer.children.length;
+
+  let minStart = Infinity;
+  let maxEnd = -Infinity;
+  selectedElements.forEach(el => {
+    const st = parseFloat(el.dataset.start);
+    const en = parseFloat(el.dataset.end);
+    if (!Number.isNaN(st)) minStart = Math.min(minStart, st);
+    if (!Number.isNaN(en)) maxEnd = Math.max(maxEnd, en);
+  });
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', subpaths.join(' '));
+  path.setAttribute('fill-rule', 'evenodd');
+
+  ['stroke', 'stroke-width', 'stroke-dasharray', 'fill', 'opacity', 'stroke-linecap', 'stroke-linejoin'].forEach(attr => {
+    const val = reference.getAttribute(attr);
+    if (val !== null) path.setAttribute(attr, val);
+  });
+
+  if (!path.hasAttribute('fill')) path.setAttribute('fill', 'none');
+  if (minStart !== Infinity) path.dataset.start = String(minStart);
+  if (maxEnd !== -Infinity) path.dataset.end = String(maxEnd);
+  path.dataset.layer = String(layerIndex);
+
+  selectedElements.forEach(el => el.remove());
+  layer.insertBefore(path, layer.children[insertIndex] || null);
+  deselect();
+  selectElement(path);
+  updateVisibility();
+  alert('穴あきパスを作成しました。\n※このパスは頂点ハンドル編集の対象外です。');
 }
 
 function bringToFront(el) {
@@ -1299,6 +1402,10 @@ deleteBtn.addEventListener('click', () => {
     selectedElements.forEach(el => el.parentNode && el.parentNode.removeChild(el));
     deselect();
   }
+});
+
+makeHoleBtn.addEventListener('click', () => {
+  createHolePathFromSelection();
 });
 
 copyBtn.addEventListener('click', copySelected);

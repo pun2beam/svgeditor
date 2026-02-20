@@ -17,6 +17,7 @@ Use the editor online at https://pun2beam.github.io/svgeditor/.
 - Import additional drawings from JSON without clearing the current canvas.
 - Move elements by selecting them or by holding Ctrl and clicking to temporarily enter selection mode.
 - Copy and paste selected elements using toolbar buttons or Ctrl+C/Ctrl+V shortcuts.
+- Create a holey path by selecting multiple closed shapes (polygon/closed path) and clicking **穴あきパス化**.
 
 ## Getting Started
 1. Clone or download this repository.
@@ -36,6 +37,7 @@ No build step or server is required; everything runs locally.
 6. Use the file input next to **Save** to load a previously saved drawing.
 7. Use **Import** to merge another saved drawing into the current canvas.
 8. Duplicate elements with the **コピー** and **貼り付け** buttons or with keyboard shortcuts.
+9. To create holes, draw one outer shape and one or more inner closed shapes, select them together, and click **穴あきパス化**.
 
 ## License
 This project is available under the MIT License.
