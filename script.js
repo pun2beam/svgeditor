@@ -15,6 +15,7 @@ const sendBackwardBtn = document.getElementById('sendBackwardBtn');
 const groupBtn = document.getElementById('groupBtn');
 const ungroupBtn = document.getElementById('ungroupBtn');
 const makeHoleBtn = document.getElementById('makeHoleBtn');
+const closePathToggle = document.getElementById('closePathToggle');
 const copyBtn = document.getElementById('copyBtn');
 const pasteBtn = document.getElementById('pasteBtn');
 const strokeInput = document.getElementById('strokeColor');
@@ -685,10 +686,34 @@ function getSmoothPath(points) {
   return d;
 }
 
+function isPathClosedFromD(d) {
+  return /[zZ]\s*$/.test((d || '').trim());
+}
+
+function isSimpleEditablePath(el) {
+  return el && el.tagName === 'path' && !el.hasAttribute('fill-rule');
+}
+
+function syncClosePathToggle() {
+  if (!closePathToggle) return;
+  const enabled = selectedElements.length === 1 && isSimpleEditablePath(selectedElement);
+  closePathToggle.disabled = !enabled;
+  if (!enabled) {
+    closePathToggle.checked = false;
+    return;
+  }
+  closePathToggle.checked = isPathClosedFromD(selectedElement.getAttribute('d') || '');
+}
+
 function finalizePath() {
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  const d = getSmoothPath(polygonPoints);
+  const isClosed = closePathToggle && closePathToggle.checked;
+  const baseD = getSmoothPath(polygonPoints);
+  const d = isClosed && baseD ? `${baseD} Z` : baseD;
   path.setAttribute('d', d);
+  if (isClosed) {
+    path.dataset.closed = 'true';
+  }
   path.setAttribute('fill', 'none');
   path.setAttribute('stroke', strokeInput.value);
   path.setAttribute('stroke-width', strokeWidthInput.value);
@@ -795,6 +820,7 @@ function selectElement(el, additive = false) {
     endInput.value = '';
     textInput.value = '';
   }
+  syncClosePathToggle();
 }
 
 function deselect() {
@@ -807,6 +833,7 @@ function deselect() {
   selectedElement = null;
   removeResizeHandle();
   removeVertexHandles();
+  syncClosePathToggle();
 }
 
 function positionResizeHandle(rect) {
@@ -850,7 +877,7 @@ function removeResizeHandle() {
 
 function getPoints(el) {
   if (el.tagName === 'path') {
-    const d = el.getAttribute('d') || '';
+    const d = (el.getAttribute('d') || '').replace(/[zZ]\s*$/, '').trim();
     const cmds = d.match(/[MLC][^MLC]*/g) || [];
     const pts = [];
     cmds.forEach(cmd => {
@@ -879,8 +906,16 @@ function getPoints(el) {
 
 function setPoints(el, pts) {
   if (el.tagName === 'path') {
-    const d = pts.length ? getSmoothPath(pts) : '';
+    const wasClosed =
+      el.dataset.closed === 'true' || isPathClosedFromD(el.getAttribute('d') || '');
+    const smoothD = pts.length ? getSmoothPath(pts) : '';
+    const d = wasClosed && smoothD ? `${smoothD} Z` : smoothD;
     el.setAttribute('d', d);
+    if (wasClosed) {
+      el.dataset.closed = 'true';
+    } else {
+      delete el.dataset.closed;
+    }
   } else {
     el.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
   }
@@ -1406,6 +1441,32 @@ deleteBtn.addEventListener('click', () => {
 
 makeHoleBtn.addEventListener('click', () => {
   createHolePathFromSelection();
+});
+
+closePathToggle.addEventListener('change', () => {
+  if (
+    selectedElements.length !== 1 ||
+    !selectedElement ||
+    !isSimpleEditablePath(selectedElement)
+  ) {
+    syncClosePathToggle();
+    return;
+  }
+  const currentD = selectedElement.getAttribute('d') || '';
+  const baseD = currentD.replace(/[zZ]\s*$/, '').trim();
+  if (!baseD) {
+    closePathToggle.checked = false;
+    delete selectedElement.dataset.closed;
+    return;
+  }
+  if (closePathToggle.checked) {
+    selectedElement.setAttribute('d', `${baseD} Z`);
+    selectedElement.dataset.closed = 'true';
+  } else {
+    selectedElement.setAttribute('d', baseD);
+    delete selectedElement.dataset.closed;
+  }
+  if (selectedElements.length === 1) addPolyHandles(selectedElement);
 });
 
 copyBtn.addEventListener('click', copySelected);
