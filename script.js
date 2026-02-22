@@ -31,6 +31,7 @@ const displayLayerCheckboxes = document.querySelectorAll('.display-layer');
 const moveLayerSelect = document.getElementById('moveLayer');
 const moveLayerBtn = document.getElementById('moveLayerBtn');
 const cursorPositionDisplay = document.getElementById('cursorPositionDisplay');
+const vertexHandleRadiusInput = document.getElementById('vertexHandleRadius');
 
 svg.style.backgroundColor = backgroundInput.value;
 backgroundInput.addEventListener('input', () => {
@@ -71,6 +72,7 @@ let selectingArea = false;
 let selectionAdditive = false;
 
 let vertexHandles = [];
+let vertexHandleRadius = parseFloat(vertexHandleRadiusInput.value) || 5;
 let draggingVertexIndex = null;
 let polygonStart = null;
 
@@ -921,12 +923,21 @@ function setPoints(el, pts) {
   }
 }
 
+function getVertexHandleRadius() {
+  return Math.max(0.1, parseFloat(vertexHandleRadiusInput.value) || 5);
+}
+
+vertexHandleRadiusInput.addEventListener('input', () => {
+  vertexHandleRadius = getVertexHandleRadius();
+  vertexHandles.forEach(handle => handle.setAttribute('r', vertexHandleRadius));
+});
+
 function addPolyHandles(poly) {
   removeVertexHandles();
   const pts = getPoints(poly);
   pts.forEach((pt, i) => {
     const handle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    handle.setAttribute('r', 5);
+    handle.setAttribute('r', vertexHandleRadius);
     handle.classList.add('vertex-handle');
     handle.setAttribute('cx', pt.x);
     handle.setAttribute('cy', pt.y);

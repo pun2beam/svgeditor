@@ -27,7 +27,8 @@ body { font-family: sans-serif; margin: 0; }
 #strokeWidth,
 #displayStart,
 #displayEnd,
-#opacity {
+#opacity,
+#vertexHandleRadius {
   width: 6ch;
 }
 
