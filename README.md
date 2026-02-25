@@ -17,6 +17,7 @@ Use the editor online at https://pun2beam.github.io/svgeditor/.
 - Import additional drawings from JSON without clearing the current canvas.
 - Move elements by selecting them or by holding Ctrl and clicking to temporarily enter selection mode.
 - Copy and paste selected elements using toolbar buttons or Ctrl+C/Ctrl+V shortcuts.
+- Undo and redo up to 10 operations with Ctrl+Z / Ctrl+Shift+Z (Ctrl+Y also supported).
 - Create a holey path by selecting multiple closed shapes (polygon/closed path) and clicking **穴あきパス化**.
 
 ## Getting Started
