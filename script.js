@@ -15,6 +15,7 @@ const sendBackwardBtn = document.getElementById('sendBackwardBtn');
 const groupBtn = document.getElementById('groupBtn');
 const ungroupBtn = document.getElementById('ungroupBtn');
 const makeHoleBtn = document.getElementById('makeHoleBtn');
+const releaseHoleBtn = document.getElementById('releaseHoleBtn');
 const closePathToggle = document.getElementById('closePathToggle');
 const copyBtn = document.getElementById('copyBtn');
 const pasteBtn = document.getElementById('pasteBtn');
@@ -1323,6 +1324,150 @@ function getShapeSubpathD(el) {
   return null;
 }
 
+
+function parsePathSubpaths(d) {
+  const source = (d || '').trim();
+  if (!source) return [];
+  const tokens = source.match(/[MLCZmlcz]|-?\d*\.?\d+(?:e[-+]?\d+)?/g) || [];
+  const subpaths = [];
+  let i = 0;
+  let cmd = null;
+  let current = { x: 0, y: 0 };
+  let subpath = null;
+
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (/^[MLCZmlcz]$/.test(token)) {
+      cmd = token;
+      i += 1;
+      if (cmd === 'Z' || cmd === 'z') {
+        if (subpath) {
+          subpath.closed = true;
+          subpaths.push(subpath);
+          subpath = null;
+        }
+      }
+      continue;
+    }
+
+    if (cmd === 'M' || cmd === 'm') {
+      const rel = cmd === 'm';
+      let first = true;
+      while (i + 1 < tokens.length && !/^[MLCZmlcz]$/.test(tokens[i])) {
+        const nx = Number(tokens[i]);
+        const ny = Number(tokens[i + 1]);
+        i += 2;
+        if (!Number.isFinite(nx) || !Number.isFinite(ny)) return [];
+        const x = rel ? current.x + nx : nx;
+        const y = rel ? current.y + ny : ny;
+        current = { x, y };
+        if (first) {
+          if (subpath && subpath.points.length) {
+            subpaths.push(subpath);
+          }
+          subpath = { points: [{ x, y }], closed: false };
+          first = false;
+        } else if (subpath) {
+          subpath.points.push({ x, y });
+        }
+      }
+      continue;
+    }
+
+    if (cmd === 'L' || cmd === 'l') {
+      if (!subpath) return [];
+      const rel = cmd === 'l';
+      while (i + 1 < tokens.length && !/^[MLCZmlcz]$/.test(tokens[i])) {
+        const nx = Number(tokens[i]);
+        const ny = Number(tokens[i + 1]);
+        i += 2;
+        if (!Number.isFinite(nx) || !Number.isFinite(ny)) return [];
+        const x = rel ? current.x + nx : nx;
+        const y = rel ? current.y + ny : ny;
+        current = { x, y };
+        subpath.points.push({ x, y });
+      }
+      continue;
+    }
+
+    if (cmd === 'C' || cmd === 'c') {
+      if (!subpath) return [];
+      const rel = cmd === 'c';
+      while (i + 5 < tokens.length && !/^[MLCZmlcz]$/.test(tokens[i])) {
+        const nums = tokens.slice(i, i + 6).map(Number);
+        i += 6;
+        if (nums.some(n => !Number.isFinite(n))) return [];
+        const x = rel ? current.x + nums[4] : nums[4];
+        const y = rel ? current.y + nums[5] : nums[5];
+        current = { x, y };
+        subpath.points.push({ x, y });
+      }
+      continue;
+    }
+
+    return [];
+  }
+
+  if (subpath && subpath.points.length) {
+    subpaths.push(subpath);
+  }
+
+  return subpaths;
+}
+
+function releaseHolePathSelection() {
+  if (selectedElements.length !== 1 || !selectedElement) {
+    alert('穴あき解除する path を1つ選択してください。');
+    return;
+  }
+
+  const holePath = selectedElement;
+  if (holePath.tagName !== 'path' || holePath.getAttribute('fill-rule') !== 'evenodd') {
+    alert('穴あき解除は fill-rule="evenodd" の path のみ対応しています。');
+    return;
+  }
+
+  const subpaths = parsePathSubpaths(holePath.getAttribute('d') || '');
+  if (!subpaths.length || subpaths.some(sp => sp.points.length < 2)) {
+    alert('穴あきパスの解析に失敗しました。');
+    return;
+  }
+
+  const layerIndex = Number(holePath.dataset.layer) || 0;
+  const layer = layers[layerIndex];
+  const allChildren = Array.from(layer.children);
+  const insertIndex = allChildren.indexOf(holePath);
+
+  const attrsToCopy = ['stroke', 'stroke-width', 'stroke-dasharray', 'fill', 'opacity', 'stroke-linecap', 'stroke-linejoin'];
+  const created = subpaths.map(sp => {
+    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    poly.setAttribute('points', sp.points.map(p => `${p.x},${p.y}`).join(' '));
+    attrsToCopy.forEach(attr => {
+      const val = holePath.getAttribute(attr);
+      if (val !== null) poly.setAttribute(attr, val);
+    });
+    if (!poly.hasAttribute('fill')) poly.setAttribute('fill', 'none');
+    if (holePath.dataset.start !== undefined) poly.dataset.start = holePath.dataset.start;
+    if (holePath.dataset.end !== undefined) poly.dataset.end = holePath.dataset.end;
+    poly.dataset.layer = String(layerIndex);
+    return poly;
+  });
+
+  holePath.remove();
+  created.forEach((el, idx) => {
+    layer.insertBefore(el, layer.children[insertIndex + idx] || null);
+  });
+
+  deselect();
+  if (created.length === 1) {
+    selectElement(created[0]);
+  } else {
+    created.forEach((el, idx) => selectElement(el, idx > 0));
+  }
+  updateVisibility();
+  alert(`穴あきパスを解除しました（${created.length}個の polygon に分解）。`);
+}
+
 function createHolePathFromSelection() {
   if (selectedElements.length < 2) {
     alert('穴あきパス化には2つ以上の図形を選択してください。');
@@ -1525,6 +1670,12 @@ deleteBtn.addEventListener('click', () => {
 makeHoleBtn.addEventListener('click', () => {
   beginHistoryTransaction();
   createHolePathFromSelection();
+  commitHistoryTransaction();
+});
+
+releaseHoleBtn.addEventListener('click', () => {
+  beginHistoryTransaction();
+  releaseHolePathSelection();
   commitHistoryTransaction();
 });
 
