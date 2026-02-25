@@ -35,7 +35,9 @@ const vertexHandleRadiusInput = document.getElementById('vertexHandleRadius');
 
 svg.style.backgroundColor = backgroundInput.value;
 backgroundInput.addEventListener('input', () => {
+  beginHistoryTransaction();
   svg.style.backgroundColor = backgroundInput.value;
+  commitHistoryTransaction();
 });
 syncFillInputState();
 
@@ -91,6 +93,70 @@ function updateTransform() {
 updateTransform();
 
 const layers = [];
+const MAX_HISTORY = 10;
+const undoStack = [];
+const redoStack = [];
+let pendingHistorySnapshot = null;
+
+function getEditorSnapshot() {
+  return {
+    background: backgroundInput.value,
+    elements: layers.flatMap(layerEl =>
+      Array.from(layerEl.children).map(serializeElement)
+    )
+  };
+}
+
+function restoreEditorSnapshot(snapshot) {
+  deselect();
+  initLayers();
+  (snapshot.elements || []).forEach(obj => {
+    const el = deserializeElement(obj);
+    const layerIdx = Number(obj.layer) || 0;
+    layers[layerIdx].appendChild(el);
+  });
+  pendingHistorySnapshot = null;
+  const background = snapshot.background || '#ffffff';
+  backgroundInput.value = background;
+  svg.style.backgroundColor = background;
+  updateVisibility();
+}
+
+function beginHistoryTransaction() {
+  if (!pendingHistorySnapshot) {
+    pendingHistorySnapshot = JSON.stringify(getEditorSnapshot());
+  }
+}
+
+function commitHistoryTransaction() {
+  if (!pendingHistorySnapshot) return;
+  const before = pendingHistorySnapshot;
+  pendingHistorySnapshot = null;
+  const after = JSON.stringify(getEditorSnapshot());
+  if (before === after) return;
+  undoStack.push(JSON.parse(before));
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack.length = 0;
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  const current = getEditorSnapshot();
+  const previous = undoStack.pop();
+  redoStack.push(current);
+  if (redoStack.length > MAX_HISTORY) redoStack.shift();
+  restoreEditorSnapshot(previous);
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  const current = getEditorSnapshot();
+  const next = redoStack.pop();
+  undoStack.push(current);
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  restoreEditorSnapshot(next);
+}
+
 function initLayers() {
   canvasContent.innerHTML = '';
   layers.length = 0;
@@ -130,6 +196,7 @@ displayLayerCheckboxes.forEach(cb =>
 );
 moveLayerBtn.addEventListener('click', () => {
   if (selectedElements.length) {
+    beginHistoryTransaction();
     const target = Number(moveLayerSelect.value);
     const layer = layers[target];
     selectedElements.forEach(el => {
@@ -138,6 +205,7 @@ moveLayerBtn.addEventListener('click', () => {
     });
     deselect();
     updateVisibility();
+    commitHistoryTransaction();
   }
 });
 
@@ -222,8 +290,10 @@ svg.addEventListener('mousedown', e => {
     return; // skip drawing when selecting
   }
   if (currentTool === 'text') {
+    beginHistoryTransaction();
     addText(pt);
     updateVisibility();
+    commitHistoryTransaction();
     return;
   }
   if (
@@ -234,6 +304,7 @@ svg.addEventListener('mousedown', e => {
     return; // handled in click events
   }
   startPoint = pt;
+  beginHistoryTransaction();
   drawing = true;
 });
 
@@ -247,6 +318,7 @@ document.addEventListener('mousemove', e => {
     startDragY = e.clientY;
     updateTransform();
   } else if (resizing && selectedElements.length === 1 && selectedElement) {
+    beginHistoryTransaction();
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
     const dy = pt.y - dragStart.y;
@@ -263,6 +335,7 @@ document.addEventListener('mousemove', e => {
       selectedElement.tagName === 'polyline' ||
       selectedElement.tagName === 'path')
   ) {
+    beginHistoryTransaction();
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
     const dy = pt.y - dragStart.y;
@@ -272,6 +345,7 @@ document.addEventListener('mousemove', e => {
     setPoints(selectedElement, newPts);
     updatePolyHandles(newPts);
   } else if (dragging && selectedElements.length) {
+    beginHistoryTransaction();
     const pt = getMousePos(e);
     const dx = pt.x - dragStart.x;
     const dy = pt.y - dragStart.y;
@@ -343,9 +417,11 @@ svg.addEventListener('mouseup', e => {
   else if (currentTool === 'arrow') addLine(startPoint, pt, true);
   else if (currentTool === 'bubble') addBubble(startPoint, pt);
   updateVisibility();
+  commitHistoryTransaction();
 });
 
 document.addEventListener('mouseup', () => {
+  commitHistoryTransaction();
   isPanning = false;
   resizing = false;
   draggingVertexIndex = null;
@@ -366,6 +442,7 @@ svg.addEventListener('click', e => {
   )
     return;
   const pt = getMousePos(e);
+  if (!polyline) beginHistoryTransaction();
   polygonPoints.push(pt);
   if (!polyline) {
     polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
@@ -387,8 +464,10 @@ svg.addEventListener('click', e => {
     e.shiftKey &&
     e.target === selectedElement
   ) {
+    beginHistoryTransaction();
     const pt = getMousePos(e);
     addPointToShape(selectedElement, pt);
+    commitHistoryTransaction();
   }
 });
 
@@ -409,6 +488,7 @@ svg.addEventListener('dblclick', e => {
   else if (currentTool === 'polyline') finalizePolyline();
   else finalizePath();
   updateVisibility();
+  commitHistoryTransaction();
 });
 
 function getMousePos(evt) {
@@ -982,9 +1062,11 @@ function removePoint(index) {
   const pts = getPoints(selectedElement);
   const minPts = selectedElement.tagName === 'polygon' ? 3 : 2;
   if (pts.length <= minPts) return;
+  beginHistoryTransaction();
   pts.splice(index, 1);
   setPoints(selectedElement, pts);
   addPolyHandles(selectedElement);
+  commitHistoryTransaction();
 }
 
 function addPointToShape(poly, pt) {
@@ -1374,13 +1456,7 @@ function pasteClipboard() {
 }
 
 saveBtn.addEventListener('click', () => {
-  const elements = layers.flatMap(layerEl =>
-    Array.from(layerEl.children).map(serializeElement)
-  );
-  const exportData = {
-    background: backgroundInput.value,
-    elements
-  };
+  const exportData = getEditorSnapshot();
   const blob = new Blob([JSON.stringify(exportData)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1402,16 +1478,9 @@ loadInput.addEventListener('change', () => {
       elements = data.elements || [];
       if (data.background) background = data.background;
     }
-    deselect();
-    initLayers();
-    elements.forEach(obj => {
-      const el = deserializeElement(obj);
-      const layerIdx = Number(obj.layer) || 0;
-      layers[layerIdx].appendChild(el);
-    });
-    svg.style.backgroundColor = background;
-    backgroundInput.value = background;
-    updateVisibility();
+    restoreEditorSnapshot({ background, elements });
+    undoStack.length = 0;
+    redoStack.length = 0;
   };
   reader.readAsText(file);
 });
@@ -1421,6 +1490,7 @@ importInput.addEventListener('change', () => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
+    beginHistoryTransaction();
     const data = JSON.parse(e.target.result);
     let elements;
     if (Array.isArray(data)) {
@@ -1432,26 +1502,30 @@ importInput.addEventListener('change', () => {
         backgroundInput.value = data.background;
       }
     }
-    deselect();
     elements.forEach(obj => {
       const el = deserializeElement(obj);
       const layerIdx = Number(obj.layer) || 0;
       layers[layerIdx].appendChild(el);
     });
     updateVisibility();
+    commitHistoryTransaction();
   };
   reader.readAsText(file);
 });
 
 deleteBtn.addEventListener('click', () => {
   if (selectedElements.length) {
+    beginHistoryTransaction();
     selectedElements.forEach(el => el.parentNode && el.parentNode.removeChild(el));
     deselect();
+    commitHistoryTransaction();
   }
 });
 
 makeHoleBtn.addEventListener('click', () => {
+  beginHistoryTransaction();
   createHolePathFromSelection();
+  commitHistoryTransaction();
 });
 
 closePathToggle.addEventListener('change', () => {
@@ -1470,6 +1544,7 @@ closePathToggle.addEventListener('change', () => {
     delete selectedElement.dataset.closed;
     return;
   }
+  beginHistoryTransaction();
   if (closePathToggle.checked) {
     selectedElement.setAttribute('d', `${baseD} Z`);
     selectedElement.dataset.closed = 'true';
@@ -1478,25 +1553,35 @@ closePathToggle.addEventListener('change', () => {
     delete selectedElement.dataset.closed;
   }
   if (selectedElements.length === 1) addPolyHandles(selectedElement);
+  commitHistoryTransaction();
 });
 
 copyBtn.addEventListener('click', copySelected);
-pasteBtn.addEventListener('click', pasteClipboard);
+pasteBtn.addEventListener('click', () => {
+  beginHistoryTransaction();
+  pasteClipboard();
+  commitHistoryTransaction();
+});
 
 bringForwardBtn.addEventListener('click', () => {
   if (selectedElements.length) {
+    beginHistoryTransaction();
     selectedElements.forEach(el => bringToFront(el));
+    commitHistoryTransaction();
   }
 });
 
 sendBackwardBtn.addEventListener('click', () => {
   if (selectedElements.length) {
+    beginHistoryTransaction();
     selectedElements.forEach(el => sendToBack(el));
+    commitHistoryTransaction();
   }
 });
 
 groupBtn.addEventListener('click', () => {
   if (selectedElements.length > 1) {
+    beginHistoryTransaction();
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     let minStart = Infinity;
     let maxEnd = -Infinity;
@@ -1520,11 +1605,13 @@ groupBtn.addEventListener('click', () => {
     deselect();
     selectElement(g);
     updateVisibility();
+    commitHistoryTransaction();
   }
 });
 
 ungroupBtn.addEventListener('click', () => {
   if (selectedElements.length === 1 && selectedElement.tagName === 'g') {
+    beginHistoryTransaction();
     const g = selectedElement;
     const index = Array.from(layers[activeLayer].children).indexOf(g);
     const children = Array.from(g.children);
@@ -1538,17 +1625,36 @@ ungroupBtn.addEventListener('click', () => {
     });
     deselect();
     updateVisibility();
+    commitHistoryTransaction();
   }
 });
 
 document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+    e.preventDefault();
+    if (e.shiftKey) {
+      redo();
+    } else {
+      undo();
+    }
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+    e.preventDefault();
+    redo();
+    return;
+  }
   if (e.key === 'Delete' && selectedElements.length) {
+    beginHistoryTransaction();
     selectedElements.forEach(el => el.parentNode && el.parentNode.removeChild(el));
     deselect();
+    commitHistoryTransaction();
   } else if ((e.key === 'c' || e.key === 'C') && (e.ctrlKey || e.metaKey)) {
     copySelected();
   } else if ((e.key === 'v' || e.key === 'V') && (e.ctrlKey || e.metaKey)) {
+    beginHistoryTransaction();
     pasteClipboard();
+    commitHistoryTransaction();
   }
 });
 
@@ -1557,20 +1663,25 @@ displayEndInput.addEventListener('input', updateVisibility);
 
 startInput.addEventListener('input', () => {
   if (selectedElements.length) {
+    beginHistoryTransaction();
     selectedElements.forEach(el => (el.dataset.start = startInput.value));
     updateVisibility();
+    commitHistoryTransaction();
   }
 });
 
 endInput.addEventListener('input', () => {
   if (selectedElements.length) {
+    beginHistoryTransaction();
     selectedElements.forEach(el => (el.dataset.end = endInput.value));
     updateVisibility();
+    commitHistoryTransaction();
   }
 });
 
 textInput.addEventListener('input', () => {
   if (!selectedElements.length) return;
+  beginHistoryTransaction();
   selectedElements.forEach(el => {
     if (el.tagName === 'text') {
       el.textContent = textInput.value;
@@ -1584,35 +1695,45 @@ textInput.addEventListener('input', () => {
       }
     }
   });
+  commitHistoryTransaction();
 });
 
 strokeInput.addEventListener('input', () => {
   if (selectedElements.length) {
+    beginHistoryTransaction();
     selectedElements.forEach(el => el.setAttribute('stroke', strokeInput.value));
+    commitHistoryTransaction();
   }
 });
 
 fillInput.addEventListener('input', () => {
   if (fillEnabledInput.checked) {
+    beginHistoryTransaction();
     applyFillToSelection();
+    commitHistoryTransaction();
   }
 });
 
 fillEnabledInput.addEventListener('change', () => {
+  beginHistoryTransaction();
   syncFillInputState();
   applyFillToSelection();
+  commitHistoryTransaction();
 });
 
 strokeWidthInput.addEventListener('input', () => {
   if (selectedElements.length) {
+    beginHistoryTransaction();
     selectedElements.forEach(el =>
       el.setAttribute('stroke-width', strokeWidthInput.value)
     );
+    commitHistoryTransaction();
   }
 });
 
 lineTypeSelect.addEventListener('change', () => {
   if (selectedElements.length) {
+    beginHistoryTransaction();
     const val = lineTypeSelect.value;
     selectedElements.forEach(el => {
       if (val) {
@@ -1621,14 +1742,17 @@ lineTypeSelect.addEventListener('change', () => {
         el.removeAttribute('stroke-dasharray');
       }
     });
+    commitHistoryTransaction();
   }
 });
 
 opacityInput.addEventListener('input', () => {
   if (selectedElements.length) {
+    beginHistoryTransaction();
     const val = Math.max(0, Math.min(1, parseFloat(opacityInput.value)));
     opacityInput.value = val;
     selectedElements.forEach(el => el.setAttribute('opacity', val));
+    commitHistoryTransaction();
   }
 });
 
