@@ -23,6 +23,10 @@ const strokeInput = document.getElementById('strokeColor');
 const fillInput = document.getElementById('fillColor');
 const fillEnabledInput = document.getElementById('fillEnabled');
 const opacityInput = document.getElementById('opacity');
+const rotateAngleInput = document.getElementById('rotateAngle');
+const rotateApplyBtn = document.getElementById('rotateApplyBtn');
+const rotateLeftBtn = document.getElementById('rotateLeftBtn');
+const rotateRightBtn = document.getElementById('rotateRightBtn');
 const backgroundInput = document.getElementById('backgroundColor');
 const strokeWidthInput = document.getElementById('strokeWidth');
 const lineTypeSelect = document.getElementById('lineType');
@@ -904,6 +908,7 @@ function selectElement(el, additive = false) {
     textInput.value = '';
   }
   syncClosePathToggle();
+  syncRotateInput();
 }
 
 function deselect() {
@@ -917,6 +922,7 @@ function deselect() {
   removeResizeHandle();
   removeVertexHandles();
   syncClosePathToggle();
+  syncRotateInput();
 }
 
 function positionResizeHandle(rect) {
@@ -1104,27 +1110,29 @@ function distanceToSegment(p, a, b) {
 function getElementStart(el) {
   switch (el.tagName) {
     case 'rect':
-      return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')) };
+      return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')), transform: el.getAttribute('transform') || '' };
     case 'circle':
-      return { cx: parseFloat(el.getAttribute('cx')), cy: parseFloat(el.getAttribute('cy')) };
+      return { cx: parseFloat(el.getAttribute('cx')), cy: parseFloat(el.getAttribute('cy')), transform: el.getAttribute('transform') || '' };
     case 'line':
       return {
         x1: parseFloat(el.getAttribute('x1')),
         y1: parseFloat(el.getAttribute('y1')),
         x2: parseFloat(el.getAttribute('x2')),
-        y2: parseFloat(el.getAttribute('y2'))
+        y2: parseFloat(el.getAttribute('y2')),
+        transform: el.getAttribute('transform') || ''
       };
     case 'polygon':
     case 'polyline':
       return {
-        points: getPoints(el)
+        points: getPoints(el),
+        transform: el.getAttribute('transform') || ''
       };
     case 'path':
       return el.hasAttribute('fill-rule')
-        ? { d: el.getAttribute('d') || '' }
-        : { points: getPoints(el) };
+        ? { d: el.getAttribute('d') || '', transform: el.getAttribute('transform') || '' }
+        : { points: getPoints(el), transform: el.getAttribute('transform') || '' };
     case 'text':
-      return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')) };
+      return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')), transform: el.getAttribute('transform') || '' };
     case 'g':
       return Array.from(el.children).map(child => ({
         el: child,
@@ -1133,6 +1141,66 @@ function getElementStart(el) {
     default:
       return {};
   }
+}
+
+
+function getElementCenter(el) {
+  const bbox = el.getBBox();
+  return { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
+}
+
+function parseRotateTransform(transform) {
+  const text = (transform || '').trim();
+  if (!text) return null;
+  const match = text.match(/^rotate\(\s*(-?\d*\.?\d+)\s+(-?\d*\.?\d+)\s+(-?\d*\.?\d+)\s*\)$/);
+  if (!match) return null;
+  const angle = Number(match[1]);
+  const cx = Number(match[2]);
+  const cy = Number(match[3]);
+  if (![angle, cx, cy].every(Number.isFinite)) return null;
+  return { angle, cx, cy };
+}
+
+function getCurrentRotate(el) {
+  const parsed = parseRotateTransform(el.getAttribute('transform') || '');
+  if (parsed) return parsed;
+  const center = getElementCenter(el);
+  return { angle: 0, cx: center.x, cy: center.y };
+}
+
+function setElementRotation(el, angle) {
+  const center = getElementCenter(el);
+  el.setAttribute('transform', `rotate(${angle} ${center.x} ${center.y})`);
+}
+
+function rotateSelection(deltaAngle) {
+  if (!selectedElements.length) return;
+  beginHistoryTransaction();
+  selectedElements.forEach(el => {
+    const current = getCurrentRotate(el);
+    setElementRotation(el, current.angle + deltaAngle);
+  });
+  if (selectedElements.length === 1) {
+    updateColorInputs(selectedElement);
+    if (selectedElement.tagName === 'rect') positionResizeHandle(selectedElement);
+    if (
+      selectedElement.tagName === 'polygon' ||
+      selectedElement.tagName === 'polyline' ||
+      (selectedElement.tagName === 'path' && !selectedElement.hasAttribute('fill-rule'))
+    ) {
+      addPolyHandles(selectedElement);
+    }
+  }
+  commitHistoryTransaction();
+}
+
+function syncRotateInput() {
+  if (selectedElements.length !== 1 || !selectedElement) {
+    rotateAngleInput.value = '';
+    return;
+  }
+  const current = getCurrentRotate(selectedElement);
+  rotateAngleInput.value = current.angle.toFixed(1).replace(/\.0$/, '');
 }
 
 function updateColorInputs(el) {
@@ -1147,6 +1215,7 @@ function updateColorInputs(el) {
   lineTypeSelect.value = el.getAttribute('stroke-dasharray') || '';
   const opacity = getComputedStyle(el).opacity;
   opacityInput.value = opacity;
+  syncRotateInput();
 }
 
 function rgbToHex(rgb) {
@@ -1156,6 +1225,7 @@ function rgbToHex(rgb) {
 }
 
 function moveElement(el, start, dx, dy) {
+  const hadStartTransform = Object.prototype.hasOwnProperty.call(start, 'transform');
   switch (el.tagName) {
     case 'rect':
       el.setAttribute('x', start.x + dx);
@@ -1200,6 +1270,17 @@ function moveElement(el, start, dx, dy) {
     case 'g':
       start.forEach(obj => moveElement(obj.el, obj.start, dx, dy));
       break;
+  }
+
+  if (hadStartTransform) {
+    const parsed = parseRotateTransform(start.transform || '');
+    if (parsed) {
+      el.setAttribute('transform', `rotate(${parsed.angle} ${parsed.cx + dx} ${parsed.cy + dy})`);
+    } else if (start.transform) {
+      el.setAttribute('transform', start.transform);
+    } else {
+      el.removeAttribute('transform');
+    }
   }
 }
 
@@ -1806,7 +1887,54 @@ document.addEventListener('keydown', e => {
     beginHistoryTransaction();
     pasteClipboard();
     commitHistoryTransaction();
+  } else if (e.key === '[') {
+    rotateSelection(-15);
+  } else if (e.key === ']') {
+    rotateSelection(15);
   }
+});
+
+
+rotateApplyBtn.addEventListener('click', () => {
+  if (!selectedElements.length) return;
+  const angle = Number(rotateAngleInput.value);
+  if (!Number.isFinite(angle)) return;
+  beginHistoryTransaction();
+  selectedElements.forEach(el => setElementRotation(el, angle));
+  if (selectedElements.length === 1 && selectedElement.tagName === 'rect') {
+    positionResizeHandle(selectedElement);
+  }
+  if (
+    selectedElements.length === 1 &&
+    selectedElement &&
+    (selectedElement.tagName === 'polygon' ||
+      selectedElement.tagName === 'polyline' ||
+      (selectedElement.tagName === 'path' && !selectedElement.hasAttribute('fill-rule')))
+  ) {
+    addPolyHandles(selectedElement);
+  }
+  commitHistoryTransaction();
+  syncRotateInput();
+});
+
+rotateLeftBtn.addEventListener('click', () => rotateSelection(-15));
+rotateRightBtn.addEventListener('click', () => rotateSelection(15));
+
+rotateAngleInput.addEventListener('input', () => {
+  if (selectedElements.length !== 1 || !selectedElement) return;
+  const angle = Number(rotateAngleInput.value);
+  if (!Number.isFinite(angle)) return;
+  beginHistoryTransaction();
+  setElementRotation(selectedElement, angle);
+  if (selectedElement.tagName === 'rect') positionResizeHandle(selectedElement);
+  if (
+    selectedElement.tagName === 'polygon' ||
+    selectedElement.tagName === 'polyline' ||
+    (selectedElement.tagName === 'path' && !selectedElement.hasAttribute('fill-rule'))
+  ) {
+    addPolyHandles(selectedElement);
+  }
+  commitHistoryTransaction();
 });
 
 displayStartInput.addEventListener('input', updateVisibility);

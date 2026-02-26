@@ -12,6 +12,7 @@ Use the editor online at https://pun2beam.github.io/svgeditor/.
 - Edit start/end times, text, stroke, and fill colors of selected elements.
 - Adjust polygon vertices by dragging, add points with Shift+click, and remove them by double-clicking a vertex.
 - Zoom the canvas with the mouse wheel, or resize a selected element by holding Shift while scrolling.
+- Rotate selected elements using the rotation controls (angle input / ±15° buttons) or [ and ] shortcuts.
 - Preview visibility with a timeline slider.
 - Save drawings to a JSON file and load them back later.
 - Import additional drawings from JSON without clearing the current canvas.
@@ -38,7 +39,8 @@ No build step or server is required; everything runs locally.
 6. Use the file input next to **Save** to load a previously saved drawing.
 7. Use **Import** to merge another saved drawing into the current canvas.
 8. Duplicate elements with the **コピー** and **貼り付け** buttons or with keyboard shortcuts.
-9. To create holes, draw one outer shape and one or more inner closed shapes, select them together, and click **穴あきパス化**.
+9. Rotate selected elements with **回転角**, **回転適用**, **⟲15°**, **⟳15°** or keyboard shortcuts <kbd>[</kbd>/<kbd>]</kbd>.
+10. To create holes, draw one outer shape and one or more inner closed shapes, select them together, and click **穴あきパス化**.
 
 ## License
 This project is available under the MIT License.

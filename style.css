@@ -28,7 +28,8 @@ body { font-family: sans-serif; margin: 0; }
 #displayStart,
 #displayEnd,
 #opacity,
-#vertexHandleRadius {
+#vertexHandleRadius,
+#rotateAngle {
   width: 6ch;
 }
 
