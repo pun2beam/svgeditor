@@ -97,6 +97,7 @@ function updateTransform() {
 }
 updateTransform();
 
+const LAYER_COUNT = 10;
 const layers = [];
 const MAX_HISTORY = 10;
 const undoStack = [];
@@ -165,7 +166,7 @@ function redo() {
 function initLayers() {
   canvasContent.innerHTML = '';
   layers.length = 0;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < LAYER_COUNT; i++) {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.dataset.layer = i;
     canvasContent.appendChild(g);
