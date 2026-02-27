@@ -1135,10 +1135,13 @@ function getElementStart(el) {
     case 'text':
       return { x: parseFloat(el.getAttribute('x')), y: parseFloat(el.getAttribute('y')), transform: el.getAttribute('transform') || '' };
     case 'g':
-      return Array.from(el.children).map(child => ({
-        el: child,
-        start: getElementStart(child)
-      }));
+      return {
+        children: Array.from(el.children).map(child => ({
+          el: child,
+          start: getElementStart(child)
+        })),
+        transform: el.getAttribute('transform') || ''
+      };
     default:
       return {};
   }
@@ -1268,9 +1271,11 @@ function moveElement(el, start, dx, dy) {
       el.setAttribute('x', start.x + dx);
       el.setAttribute('y', start.y + dy);
       break;
-    case 'g':
-      start.forEach(obj => moveElement(obj.el, obj.start, dx, dy));
+    case 'g': {
+      const groupChildren = Array.isArray(start) ? start : start.children || [];
+      groupChildren.forEach(obj => moveElement(obj.el, obj.start, dx, dy));
       break;
+    }
   }
 
   if (hadStartTransform) {
